@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Lulse" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Lulse: edge-to-edge, no-action-bar, karanlık. Compose tema runtime'da yönetir. -->
+    <style name="Theme.Lulse" parent="android:Theme.DeviceDefault.NoActionBar" />
 </resources>
