@@ -5,6 +5,8 @@
     <string name="motion_high_title">Yatar pozisyona geçin</string>
     <string name="motion_high_subtitle">Telefonu kalbinizin üzerine koyun</string>
     <string name="motion_high_hint">Hareket azalınca ölçüm başlayacak</string>
+    <!-- Telefon dik tutuluyor (orientation gating) -->
+    <string name="motion_upright_hint">Telefonu dik tutuyorsunuz — göğsünüze yatay yerleştirin</string>
 
     <!-- Sakinleşme (State B) -->
     <string name="motion_settling_title">Sabit kalın</string>

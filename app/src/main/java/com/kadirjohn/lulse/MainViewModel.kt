@@ -13,6 +13,7 @@ import com.kadirjohn.lulse.data.sensor.SensorType
 import com.kadirjohn.lulse.domain.measurement.MeasurementStateMachine
 import com.kadirjohn.lulse.domain.motion.MotionAnalyzer
 import com.kadirjohn.lulse.domain.motion.MotionState
+import com.kadirjohn.lulse.domain.signal.SignalProcessor
 import com.kadirjohn.lulse.ui.screen.DebugUiState
 import com.kadirjohn.lulse.ui.screen.HomeUiState
 import com.kadirjohn.lulse.ui.screen.SignalQuality
@@ -35,6 +36,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val recordingManager = RecordingManager(app)
     private val motionAnalyzer = MotionAnalyzer()
     private val measurementStateMachine = MeasurementStateMachine()
+    private val signalProcessor = SignalProcessor()
 
     private val ringBuffer = SensorRingBuffer()
     private val sampleRateEstimators: Map<SensorType, SampleRateEstimator> =
@@ -80,14 +82,26 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val (score, motionState) = motionAnalyzer.analyzeAndClassify(ringBuffer, nowNanos, currentMotionState)
         currentMotionState = motionState
 
+        // Sadece STILL iken pulse ara — hareketli/dikken DSP çalışmaz.
+        val pulse: SignalProcessor.SignalResult? =
+            if (motionState == MotionState.STILL && !score.phoneUpright) {
+                signalProcessor.process(ringBuffer.snapshot())
+            } else null
+
         val nowMs = System.currentTimeMillis()
-        val (measurementState, _) = measurementStateMachine.update(motionState, nowMs)
+        val (measurementState, _) = measurementStateMachine.update(motionState, pulse, nowMs)
 
         _uiState.update { prev ->
             prev.copy(
                 motionState = motionState,
                 measurementState = measurementState,
                 motionScore = score,
+                phoneUpright = score.phoneUpright,
+                bpm = measurementStateMachine.lastPulse?.bpm,
+                confidencePct = measurementStateMachine.lastPulse?.let { (it.confidence * 100).toInt() },
+                signalQuality = qualityFromConfidence(measurementStateMachine.lastPulse?.confidence),
+                lastBeatNanos = measurementStateMachine.lastPulse?.lastBeatNanos,
+                recentBeatNanos = measurementStateMachine.lastPulse?.recentBeatNanos ?: emptyList(),
                 debug = prev.debug.copy(
                     motionScore = score.total,
                     accelVariance = score.accelVariance,
@@ -95,12 +109,22 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                     jerk = score.jerkMagnitude,
                     motionState = motionState,
                     measurementState = measurementState,
+                    orientation = score.orientation,
                     bufferDropped = ringBuffer.droppedCount(),
                     bufferSize = ringBuffer.size,
+                    bpm = pulse?.bpm,
+                    confidence = pulse?.confidence,
                 ),
             )
         }
         pushSensorDebug()
+    }
+
+    private fun qualityFromConfidence(c: Float?): SignalQuality = when {
+        c == null -> SignalQuality.UNKNOWN
+        c >= 0.8f -> SignalQuality.HIGH
+        c >= 0.6f -> SignalQuality.MEDIUM
+        else -> SignalQuality.LOW
     }
 
     private fun pushSensorDebug() {

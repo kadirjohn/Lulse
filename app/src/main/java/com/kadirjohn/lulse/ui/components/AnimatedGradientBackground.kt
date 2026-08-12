@@ -1,12 +1,17 @@
 package com.kadirjohn.lulse.ui.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -32,22 +37,37 @@ import kotlin.math.sin
  * [heat] 0..1: 1 = tam kırmızı/bordo (HIGH_MOTION), 0 = siyah (STILL).
  * [accent] duruma göre ek vurgu rengi (NO_PULSE nötr, LOW_CONF amber, PULSE sıcak).
  * Gradient hafif "breathing" ile akar; sakinleştikçe yavaşlar ve söner.
+ *
+ * **Beat glow:** [lastBeatNanos] değiştikçe (yeni beat geldikçe) merkezde beyaz
+ * bir glow "tık" diye parlar ve hızla söner — nabız gerçekten atıyor mu diye
+ * gözle ayırt edebilmek için. Nabız yoksa ([lastBeatNanos] == null) glow siyah.
  */
 @Composable
 fun AnimatedGradientBackground(
     heat: Float,
     accent: Accent,
+    lastBeatNanos: Long?,
     modifier: Modifier = Modifier,
 ) {
     // Nefes döngüsü: hareketliyken hızlı, sakinken yavaş ve hafif.
     val breathDuration = lerp(2600, 6200, 1f - heat).toInt()
     val phase by rememberBreathCycle(durationMs = breathDuration, intensity = heat.coerceIn(0f, 1f))
 
+    // Beat pulse: her yeni beat'te 1'e sıçra, ~220ms'de 0'a sön.
+    val beatPulse = remember { Animatable(0f) }
+    LaunchedEffect(lastBeatNanos) {
+        if (lastBeatNanos != null) {
+            beatPulse.snapTo(1f)
+            beatPulse.animateTo(0f, tween(220, easing = LinearEasing))
+        }
+    }
+    val pulseValue = beatPulse.value
+
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(Black)
-            .drawWithCache {
+            .drawBehind {
                 val w = size.width
                 val h = size.height
                 // Gradient merkezleri phase'e göre yavaşça kayar (flow hissi).
@@ -74,9 +94,25 @@ fun AnimatedGradientBackground(
                 )
                 val accentBrush = accentBrush(accent, cx2, cy2, maxOf(w, h) * 0.5f, breath)
 
-                onDrawBehind {
-                    drawRect(brush)
-                    drawRect(accentBrush)
+                drawRect(brush)
+                drawRect(accentBrush)
+
+                // Beat glow — merkezde beyaz, her beat'te parlayıp sön.
+                // Nabız yoksa pulseValue 0 => glow çizilmez => siyah kalır.
+                if (pulseValue > 0.01f) {
+                    val glowColor = if (accent == Accent.AMBER) Amber else PulseWarmWhite
+                    drawRect(
+                        Brush.radialGradient(
+                            colors = listOf(
+                                glowColor.copy(alpha = 0.55f * pulseValue),
+                                glowColor.copy(alpha = 0.18f * pulseValue),
+                                Color.Transparent,
+                            ),
+                            center = Offset(w * 0.5f, h * 0.5f),
+                            radius = maxOf(w, h) * (0.5f + 0.15f * pulseValue),
+                            tileMode = TileMode.Clamp,
+                        ),
+                    )
                 }
             },
     )

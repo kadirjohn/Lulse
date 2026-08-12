@@ -9,9 +9,10 @@ import java.util.ArrayDeque
  * Thread-safe değildir — tek bir consumer coroutine içinden kullanılmalıdır
  * (ör. [SensorRepository]'nin toplayıcı coroutine'i).
  *
- * @param maxSamples Kapasite (ör. 5 sn × ~200 Hz × 3 sensör için ~3000).
+ * @param maxSamples Kapasite. FASTEST sample rate (~400 Hz × 3 sensör = ~1200 örn/sn)
+ * için ~5 sn pencere + pay: 18_000.
  */
-class SensorRingBuffer(private val maxSamples: Int = 4_000) {
+class SensorRingBuffer(private val maxSamples: Int = 18_000) {
 
     private val deque: ArrayDeque<SensorSample> = ArrayDeque(maxSamples)
     private var dropped: Int = 0

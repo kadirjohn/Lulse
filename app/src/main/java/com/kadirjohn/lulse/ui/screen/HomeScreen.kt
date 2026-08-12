@@ -80,7 +80,11 @@ fun HomeScreen(
                 )
             },
     ) {
-        AnimatedGradientBackground(heat = heat, accent = accent)
+        AnimatedGradientBackground(
+            heat = heat,
+            accent = accent,
+            lastBeatNanos = state.lastBeatNanos,
+        )
 
         // Merkez içerik — state'e göre değişir.
         Box(
@@ -120,7 +124,7 @@ private fun CenterContent(state: HomeUiState) {
             CenterKey.HIGH_MOTION -> GuidanceColumn(
                 title = stringRes(R.string.motion_high_title),
                 subtitle = stringRes(R.string.motion_high_subtitle),
-                hint = stringRes(R.string.motion_high_hint),
+                hint = if (state.phoneUpright) stringRes(R.string.motion_upright_hint) else stringRes(R.string.motion_high_hint),
             )
             CenterKey.SETTLING -> GuidanceColumn(
                 title = stringRes(R.string.motion_settling_title),

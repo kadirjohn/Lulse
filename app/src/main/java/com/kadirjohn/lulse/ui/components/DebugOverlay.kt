@@ -92,8 +92,11 @@ fun DebugOverlay(
                 DebugRow("accelVar", "%.3f".format(state.accelVariance))
                 DebugRow("gyroEnergy", "%.4f".format(state.gyroEnergy))
                 DebugRow("jerk", "%.3f".format(state.jerk))
+                DebugRow("orientation", state.orientation.name)
                 DebugRow("motionState", state.motionState.name)
                 DebugRow("measurementState", state.measurementState.name)
+                DebugRow("bpm", state.bpm?.toString() ?: "-")
+                DebugRow("confidence", state.confidence?.let { "%.2f".format(it) } ?: "-")
             }
             DebugSection("Buffer") {
                 DebugRow("size", state.bufferSize.toString())

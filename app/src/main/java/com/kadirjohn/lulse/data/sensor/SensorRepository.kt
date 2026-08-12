@@ -45,8 +45,10 @@ class SensorRepository(context: Context) {
      * Flow toplanırken listener kaydedilir, toplama durunca kaydı silinir —
      * yani lifecycle-aware, otomatik temizlik.
      *
-     * Sampling: [SensorManager.SENSOR_DELAY_GAME] makul bir başlangıç (~50ms).
-     * İleride mikrosaniye-level kontrol için `samplingPeriodUs` parametre eklenebilir.
+     * Sampling: [SensorManager.SENSOR_DELAY_FASTEST] — kardiyak bandı (5–30 Hz)
+     * Nyquist altında görünebilsin diye en yüksek donanım hızı istenir.
+     * SENSOR_DELAY_GAME (~50 Hz, Nyquist=25 Hz) kalbin üst frekans bileşenini
+     * kaybediyordu; FASTEST ile Pixel 9 tipik olarak ~200–400 Hz verir.
      */
     fun samples(): Flow<SensorSample> = callbackFlow {
         val listener = object : SensorEventListener {
@@ -76,7 +78,7 @@ class SensorRepository(context: Context) {
                 sensorManager.registerListener(
                     listener,
                     sensor,
-                    SensorManager.SENSOR_DELAY_GAME,
+                    SensorManager.SENSOR_DELAY_FASTEST,
                 )
                 registered++
             }

@@ -14,10 +14,16 @@ data class HomeUiState(
     val motionState: MotionState = MotionState.HIGH_MOTION,
     val measurementState: MeasurementState = MeasurementState.IDLE,
     val motionScore: MotionScore = MotionScore.EMPTY,
-    // Pulse (Faz 5'e kadar null — mock kapalı).
+    // Pulse (Faz 5).
     val bpm: Int? = null,
     val confidencePct: Int? = null,
     val signalQuality: SignalQuality = SignalQuality.UNKNOWN,
+    /** En son beat anı (event timestamp nanos) — UI glow pulse sync için. */
+    val lastBeatNanos: Long? = null,
+    /** Son beat zamanları — UI'ın tık-tık glow'u için. */
+    val recentBeatNanos: List<Long> = emptyList(),
+    // Telefon dik mi tutuluyor? (orientation gating) — UI yönlendirme için.
+    val phoneUpright: Boolean = false,
     // İlk açılış onboarding katmanı.
     val showIntro: Boolean = true,
     // Debug overlay.
@@ -40,6 +46,10 @@ data class DebugUiState(
     val jerk: Float = 0f,
     val motionState: MotionState = MotionState.HIGH_MOTION,
     val measurementState: MeasurementState = MeasurementState.IDLE,
+    val orientation: com.kadirjohn.lulse.domain.motion.Orientation =
+        com.kadirjohn.lulse.domain.motion.Orientation.UNKNOWN,
+    val bpm: Int? = null,
+    val confidence: Float? = null,
     val recording: Boolean = false,
     val recordedCount: Int = 0,
     val lastExportPath: String? = null,
