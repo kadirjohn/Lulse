@@ -48,8 +48,9 @@ import kotlin.math.sqrt
  * ölçer; heartbeat kaynağı olarak LINEAR_ACCELERATION kullanılmaz.
  */
 class SignalProcessor(
-    /** Analiz penceresi uzunluğu (saniye) — uzun pencere daha stabil ACF. */
-    private val windowSeconds: Float = 6f,
+    /** Analiz penceresi uzunluğu (saniye) — 8s: daha stabil ACF, ilk-pencere spike'ı azalır.
+     *  Doğrulama verisi (sadecebuiyi): 6s pencerede ilk 6 sn 101–151 spike; 8s daha oturaklı. */
+    private val windowSeconds: Float = 8f,
     /** Beklenen sample rate (Hz). ±%30 sapma tolere edilir. */
     private val expectedSampleRateHz: Float = 199f,
     // Band-pass.
@@ -64,8 +65,12 @@ class SignalProcessor(
     private val minAcCandidateStrength: Float = 0.15f,
     /** Harmonik fundamental için min ACF gücü. 0.30 — zayıf fundamental'ı harmonik sanma. */
     private val minFundamentalStrength: Float = 0.30f,
-    /** Min sample = fs * bu çarpan, en az 60. */
-    private val minSamplesMultiplier: Int = 3,
+    /** Min sample = fs * bu çarpan, en az 60. 4: ilk 4 saniye dolmadan BPM üretme —
+     *  pencere 8s'nin yarısı; ilk-pencere spike'ını (101–151) engeller. */
+    private val minSamplesMultiplier: Int = 4,
+    /** Confidence floor — ACF gücü düşük olsa bile conf bu değerin altına inmesin.
+     *  Doğrulama: ACF 0.31 iken conf 0.26'ya düşüyor (gyro-disagree cezası). 0.30 floor. */
+    private val confidenceFloor: Float = 0.30f,
     /** Beat lokalizasyonu için min peak interval (saniye). */
     private val minBeatIntervalSec: Float = 0.35f,
 ) {
@@ -79,6 +84,8 @@ class SignalProcessor(
         val lastBeatNanos: Long?,
         /** Son beat zaman damgaları (UI pulse animasyonu için). */
         val recentBeatNanos: List<Long>,
+        /** PulseLockTracker için hypothesis ailesi. */
+        val hypotheses: PulseLockTracker.Hypotheses?,
         /** Tahminin nasıl üretildiği — debug için. */
         val verdict: String,
     )
@@ -124,9 +131,10 @@ class SignalProcessor(
                     Triple(dPrimary, primary.conf, "${secondary.verdict}->acc-fund")
                 }
                 else -> {
-                    // Çelişki — ama v2: güveni çok düşürme (0.7×→0.85×).
+                    // Çelişki — ama v3: güveni çok düşürme (0.85×→0.95×) + floor korunsun.
+                    // Doğrulama verisi: ACC doğru sayıyor, GYRO farklı — ceza gereksiz.
                     // Birincil (ACC) ACF gücü hâlâ ana sinyal; gyro sadece doğrulama.
-                    Triple(dPrimary, primary.conf * 0.85f, "${primary.verdict}+gyro-disagree")
+                    Triple(dPrimary, max(primary.conf * 0.95f, confidenceFloor), "${primary.verdict}+gyro-disagree")
                 }
             }
         } else {
@@ -155,6 +163,7 @@ class SignalProcessor(
             confidence = confFinal.coerceIn(0f, 1f),
             lastBeatNanos = beatNanos.lastOrNull(),
             recentBeatNanos = beatNanos.takeLast(8),
+            hypotheses = primary.hypotheses,
             verdict = verdictFinal,
         )
     }
@@ -199,6 +208,9 @@ class SignalProcessor(
         val (bpm, conf, verdict, usedLagSamples) = disamb ?: return null
         if (bpm < minBpm || bpm > maxBpm) return null
 
+        // Hypothesis ailesi üret — PulseLockTracker için (kullanıcı mimarisi).
+        val hypotheses = buildHypotheses(cands, spec, fs, conf)
+
         // Beat lokalizasyonu: envelope peak'leri, ACF periyodu (usedLag) ile doğrula.
         // Peak'ler usedLag aralığında olmalı; doubling peak'lerini eler.
         val beatNanos = localizeBeats(env, ts, fs, usedLagSamples)
@@ -208,6 +220,46 @@ class SignalProcessor(
             conf = conf,
             verdict = verdict,
             beatNanos = beatNanos,
+            hypotheses = hypotheses,
+        )
+    }
+
+    /**
+     * Hypothesis ailesi üret: raw (en güçlü ACF candidate), half (raw/2),
+     * double (raw×2) + her biri için ACF gücü. PulseLockTracker bunu kullanarak
+     * SEARCHING→ACQUIRING→LOCKED kararını verir (docs planı Adım 1-2).
+     */
+    private fun buildHypotheses(
+        cands: List<AcCandidate>,
+        spec: AcfSpec,
+        fs: Float,
+        conf: Float,
+    ): PulseLockTracker.Hypotheses {
+        val best = cands.first()
+        val rawBpm = 60f * fs / best.lag
+        val halfBpm = (rawBpm / 2f).takeIf { it >= minBpm }
+        val doubleBpm = (rawBpm * 2f).takeIf { it <= maxBpm }
+        // Half/double için ACF gücü: karşılık gelen lag'da ACF değeri.
+        fun strengthForBpm(bpm: Float?): Float {
+            if (bpm == null) return 0f
+            val targetLag = fs * 60f / bpm
+            // spec.lags aralığında en yakın lag'ı bul.
+            var best = 0f
+            for (i in spec.lags.indices) {
+                if (abs(spec.lags[i] - targetLag) < 2f) {
+                    if (spec.ac[i] > best) best = spec.ac[i]
+                }
+            }
+            return best
+        }
+        return PulseLockTracker.Hypotheses(
+            rawBpm = rawBpm,
+            halfBpm = halfBpm,
+            doubleBpm = doubleBpm,
+            rawStrength = best.strength,
+            halfStrength = strengthForBpm(halfBpm),
+            doubleStrength = strengthForBpm(doubleBpm),
+            confidence = conf,
         )
     }
 
@@ -385,7 +437,9 @@ class SignalProcessor(
         }
 
         // Harmonik yok — en güçlü candidate (primary ACF).
-        val conf = min(0.9f, bestStr)
+        // Confidence floor: ACF gücü düşük olsa bile conf bu değerin altına inmesin
+        // (gyro-disagree cezası sonra uygulanır ama floor burada korunur).
+        val conf = max(min(0.9f, bestStr), confidenceFloor)
         return DisambResult(bestBpm, conf, "primary-acf", bestLag)
     }
 
@@ -439,6 +493,8 @@ class SignalProcessor(
         val conf: Float,
         val verdict: String,
         val beatNanos: List<Long>,
+        /** Hypothesis ailesi — PulseLockTracker için. */
+        val hypotheses: PulseLockTracker.Hypotheses?,
     )
 
     private data class AcfSpec(val lags: IntArray, val ac: FloatArray)

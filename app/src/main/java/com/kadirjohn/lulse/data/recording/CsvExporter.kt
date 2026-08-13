@@ -179,6 +179,19 @@ class CsvExporter {
                             f.sampleRatesHz["ACCELEROMETER"]?.toString() ?: "",
                             f.sampleRatesHz["GYROSCOPE"]?.toString() ?: "",
                             f.sampleRatesHz["LINEAR_ACCELERATION"]?.toString() ?: "",
+                            // Pulse lock tracker debug.
+                            f.lockState,
+                            f.lockedBpm?.toString() ?: "",
+                            f.lockAgeTicks.toString(),
+                            f.switchReason,
+                            f.rawCandidateBpm?.toString() ?: "",
+                            f.halfCandidateBpm?.toString() ?: "",
+                            f.doubleCandidateBpm?.toString() ?: "",
+                            f.rawAcfStrength?.toString() ?: "",
+                            f.halfAcfStrength?.toString() ?: "",
+                            f.doubleAcfStrength?.toString() ?: "",
+                            f.selectedHypothesis,
+                            f.watchBpm?.toString() ?: "",
                         ).joinToString(","),
                     )
                 }
@@ -244,6 +257,9 @@ class CsvExporter {
         watchRefCount: Int = 0,
         clockSyncCount: Int = 0,
     ) {
+        // İlk satır: DATE:YYYYMMDD — kayıt sıralaması/sort için (kullanıcı isteği).
+        val dateFmt = SimpleDateFormat("yyyyMMdd", Locale.US)
+        w.appendLine("DATE:${dateFmt.format(Date(m.sessionStartMs))}")
         w.appendLine("# Lulse sensor session")
         w.appendLine("# device_model=${m.deviceModel}")
         w.appendLine("# app_version=${m.appVersion}")

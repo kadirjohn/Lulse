@@ -22,6 +22,8 @@ data class HomeUiState(
     val lastBeatNanos: Long? = null,
     /** Son beat zamanları — UI'ın tık-tık glow'u için. */
     val recentBeatNanos: List<Long> = emptyList(),
+    /** Pulse lock state — SEARCHING/ACQUIRING/LOCKED (UI accent + content seçimi). */
+    val lockState: String = "SEARCHING",
     // Telefon dik mi tutuluyor? (orientation gating) — UI yönlendirme için.
     val phoneUpright: Boolean = false,
     // İlk açılış onboarding katmanı.

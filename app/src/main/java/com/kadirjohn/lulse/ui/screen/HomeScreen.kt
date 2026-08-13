@@ -23,8 +23,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kadirjohn.lulse.R
 import com.kadirjohn.lulse.domain.measurement.MeasurementState
 import com.kadirjohn.lulse.domain.motion.MotionState
@@ -68,10 +70,12 @@ fun HomeScreen(
     }
     val heat by animateHeat(heatTarget)
 
-    val accent = when (state.measurementState) {
-        MeasurementState.PULSE_DETECTED -> Accent.PULSE
-        MeasurementState.LOW_CONFIDENCE -> Accent.AMBER
-        MeasurementState.NO_PULSE -> Accent.NEUTRAL
+    // Accent lock state'e göre — LOCKED yeşil, ACQUIRING/SEARCHING sarı/dark, hareket nötr.
+    val accent = when {
+        state.lockState == "LOCKED" -> Accent.LOCKED_GREEN
+        state.measurementState == MeasurementState.LOW_CONFIDENCE -> Accent.AMBER
+        state.measurementState == MeasurementState.NO_PULSE -> Accent.NEUTRAL
+        state.measurementState == MeasurementState.PULSE_DETECTED -> Accent.PULSE
         else -> if (state.motionState == MotionState.STILL) Accent.READY else Accent.NEUTRAL
     }
 
@@ -132,7 +136,8 @@ private fun CenterContent(state: HomeUiState) {
     AnimatedContent(
         targetState = centerKey(state),
         transitionSpec = {
-            (fadeIn(tween(600, easing = CalmEasing)) togetherWith fadeOut(tween(400, easing = CalmEasing)))
+            // Smooth text/content değişimi — 800ms crossFade (kullanıcı UI isteği).
+            (fadeIn(tween(800, easing = CalmEasing)) togetherWith fadeOut(tween(600, easing = CalmEasing)))
         },
         label = "center",
     ) { key ->
@@ -146,19 +151,21 @@ private fun CenterContent(state: HomeUiState) {
                 title = stringRes(R.string.motion_settling_title),
                 subtitle = stringRes(R.string.motion_settling_subtitle),
             )
-            CenterKey.SEARCHING -> SearchingContent()
-            CenterKey.PULSE_DETECTED -> PulseContent(state.bpm, state.confidencePct, state.signalQuality)
+            CenterKey.SEARCHING, CenterKey.ACQUIRING -> SearchingContent()
+            CenterKey.LOCKED -> PulseContent(state.bpm, state.confidencePct, state.signalQuality)
             CenterKey.NO_PULSE -> NoPulseContent()
-            CenterKey.LOW_CONFIDENCE -> LowConfidenceContent(state.bpm)
+            CenterKey.LOW_CONFIDENCE -> PulseContent(state.bpm, state.confidencePct, state.signalQuality)
         }
     }
 }
 
-private fun centerKey(state: HomeUiState): CenterKey = when (state.measurementState) {
-    MeasurementState.PULSE_DETECTED -> CenterKey.PULSE_DETECTED
-    MeasurementState.LOW_CONFIDENCE -> CenterKey.LOW_CONFIDENCE
-    MeasurementState.NO_PULSE -> CenterKey.NO_PULSE
-    MeasurementState.SEARCHING_PULSE -> CenterKey.SEARCHING
+private fun centerKey(state: HomeUiState): CenterKey = when {
+    state.lockState == "LOCKED" -> CenterKey.LOCKED
+    state.lockState == "ACQUIRING" && state.measurementState != MeasurementState.NO_PULSE -> CenterKey.ACQUIRING
+    state.measurementState == MeasurementState.PULSE_DETECTED -> CenterKey.LOCKED
+    state.measurementState == MeasurementState.LOW_CONFIDENCE -> CenterKey.LOW_CONFIDENCE
+    state.measurementState == MeasurementState.NO_PULSE -> CenterKey.NO_PULSE
+    state.measurementState == MeasurementState.SEARCHING_PULSE -> CenterKey.SEARCHING
     else -> when (state.motionState) {
         MotionState.HIGH_MOTION -> CenterKey.HIGH_MOTION
         MotionState.SETTLING -> CenterKey.SETTLING
@@ -166,19 +173,33 @@ private fun centerKey(state: HomeUiState): CenterKey = when (state.measurementSt
     }
 }
 
-private enum class CenterKey { HIGH_MOTION, SETTLING, SEARCHING, PULSE_DETECTED, NO_PULSE, LOW_CONFIDENCE }
+private enum class CenterKey { HIGH_MOTION, SETTLING, SEARCHING, ACQUIRING, LOCKED, NO_PULSE, LOW_CONFIDENCE }
 
 @Composable
 private fun GuidanceColumn(title: String, subtitle: String, hint: String? = null) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        modifier = Modifier.padding(horizontal = 32.dp),
+        // "Yatar pozisyon" cümlesi biraz yukarı — büyük title, alt yönerge daha küçük.
+        modifier = Modifier.padding(horizontal = 28.dp).padding(bottom = 40.dp),
     ) {
-        Text(title, style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
-        Spacer(Modifier.height(10.dp))
-        Text(subtitle, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-        if (hint != null) {
+        // Tek büyük fixed cümle — title, en belirgin.
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(14.dp))
+        // Alt yönerge — subtitle, biraz daha küçük ama yine büyük.
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        if (hint != null && hint != subtitle) {
             Spacer(Modifier.height(18.dp))
             Text(hint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), textAlign = TextAlign.Center)
         }
@@ -201,9 +222,10 @@ private fun SearchingContent() {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(top = 160.dp),
+            modifier = Modifier.padding(top = 170.dp),
         ) {
-            Text(stringRes(R.string.ready_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground)
+            // "Nabız aranıyor" — ACQUIRING/SEARCHING'de büyük, BPM gösterme.
+            Text(stringRes(R.string.ready_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
             Spacer(Modifier.height(6.dp))
             Text(stringRes(R.string.ready_subtitle), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
@@ -219,12 +241,14 @@ private fun PulseContent(bpm: Int?, confidencePct: Int?, quality: SignalQuality)
         HeartIcon(
             mode = HeartMode.PULSE_DETECTED,
             bpm = bpm,
-            modifier = Modifier.size(64.dp),
+            modifier = Modifier.size(72.dp),
         )
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(14.dp))
+        // Büyük BPM fontu — belirgin (kullanıcı UI isteği).
         Text(
             text = "${bpm ?: "—"}",
-            style = MaterialTheme.typography.displayLarge,
+            fontSize = 88.sp,
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
         )
         Text(
@@ -232,13 +256,7 @@ private fun PulseContent(bpm: Int?, confidencePct: Int?, quality: SignalQuality)
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Spacer(Modifier.height(10.dp))
-        Text(stringRes(R.string.pulse_detected_label), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(6.dp))
-        Text(qualityText(quality), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        if (confidencePct != null) {
-            Text(stringResArgs(R.string.confidence_label, confidencePct), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
+        // Gereksiz debug-ağırı etiketler kaldırıldı (sinyal kalitesi/güven UI'da değil).
     }
 }
 
@@ -261,23 +279,8 @@ private fun NoPulseContent() {
     }
 }
 
-@Composable
-private fun LowConfidenceContent(bpm: Int?) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
-    ) {
-        HeartIcon(mode = HeartMode.LOW_CONFIDENCE, bpm = bpm, modifier = Modifier.size(70.dp))
-        Spacer(Modifier.height(10.dp))
-        Text("${bpm ?: "—"} ${stringRes(R.string.bpm_unit)}", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground)
-        Spacer(Modifier.height(6.dp))
-        Text(stringRes(R.string.low_confidence_tag), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.tertiary)
-        Spacer(Modifier.height(14.dp))
-        Text(stringRes(R.string.low_confidence_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(4.dp))
-        Text(stringRes(R.string.low_confidence_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-    }
-}
+// LowConfidenceContent kaldırıldı — LOW_CONFIDENCE artık PulseContent kullanır
+// (büyük BPM, gereksiz "Ölçüm kararsız" yazısı yok, kullanıcı UI isteği).
 
 @Composable
 private fun IntroOverlay(state: HomeUiState) {
@@ -296,8 +299,7 @@ private fun IntroOverlay(state: HomeUiState) {
             Text(stringRes(R.string.intro_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
             Spacer(Modifier.height(8.dp))
             Text(stringRes(R.string.intro_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(10.dp))
-            Text(stringRes(R.string.intro_disclaimer), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f), textAlign = TextAlign.Center)
+            // Disclaimer ("tıbbi amaçla kullanılmaz") kaldırıldı — kullanıcı isteği.
         }
     }
 }

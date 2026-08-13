@@ -1,11 +1,11 @@
 <resources>
     <string name="app_name">Lulse</string>
 
-    <!-- Yüksek hareket (State A) -->
-    <string name="motion_high_title">Yatar pozisyona geçin</string>
-    <string name="motion_high_subtitle">Telefonu kalbinizin üzerine koyun</string>
+    <!-- Yüksek hareket (State A) — tek büyük cümle + alt yönerge -->
+    <string name="motion_high_title">Yatar pozisyona geçin ve telefonu kalbinizin üzerine koyun</string>
+    <string name="motion_high_subtitle">Hareket azalınca ölçüm başlayacak</string>
     <string name="motion_high_hint">Hareket azalınca ölçüm başlayacak</string>
-    <!-- Telefon dik tutuluyor (orientation gating) -->
+    <!-- Telefon dik tutuluyor (orientation gating) — alt yönerge, daha belirgin -->
     <string name="motion_upright_hint">Telefonu dik tutuyorsunuz — göğsünüze yatay yerleştirin</string>
 
     <!-- Sakinleşme (State B) -->
@@ -13,15 +13,10 @@
     <string name="motion_settling_subtitle">Ölçüm için hazırlanıyor</string>
 
     <!-- Hazır / aranıyor (State C) -->
-    <string name="ready_title">Hazır</string>
-    <string name="ready_subtitle">Nabız aranıyor</string>
+    <string name="ready_title">Nabız aranıyor</string>
+    <string name="ready_subtitle">Telefonu sabit tutun</string>
 
-    <!-- Nabız bulundu (State D) -->
-    <string name="pulse_detected_label">Tahmini nabız</string>
-    <string name="signal_quality_high">Sinyal kalitesi: Yüksek</string>
-    <string name="signal_quality_medium">Sinyal kalitesi: Orta</string>
-    <string name="signal_quality_low">Sinyal kalitesi: Düşük</string>
-    <string name="confidence_label">Güven: %1$d%%</string>
+    <!-- Nabız bulundu (State D) — UI sade, debug-ağırı etiketler kaldırıldı -->
     <string name="bpm_unit">BPM</string>
 
     <!-- Nabız algılanmadı (State E) -->
@@ -29,15 +24,9 @@
     <string name="no_pulse_hint_reposition">Telefonu biraz daha sola kaydırmayı deneyin</string>
     <string name="no_pulse_hint_still">Birkaç saniye daha sabit kalın</string>
 
-    <!-- Düşük güven (State F) -->
-    <string name="low_confidence_title">Ölçüm kararsız</string>
-    <string name="low_confidence_hint">Biraz daha sabit kalın</string>
-    <string name="low_confidence_tag">Düşük güven</string>
-
-    <!-- İlk açılış onboarding katmanı (spec §11) -->
+    <!-- İlk açılış onboarding katmanı — disclaimer kaldırıldı -->
     <string name="intro_title">Yatın ve telefonu kalbinizin üzerine koyun</string>
     <string name="intro_hint">En iyi sonuç için birkaç saniye sabit kalın</string>
-    <string name="intro_disclaimer">Bu uygulama tıbbi amaçla kullanılmaz.</string>
 
     <!-- Debug panel -->
     <string name="debug_title">Debug</string>

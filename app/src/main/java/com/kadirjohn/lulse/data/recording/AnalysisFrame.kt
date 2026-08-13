@@ -45,6 +45,31 @@ data class AnalysisFrame(
     val bufferDropped: Int,
     /** Her sensör tipi için ölçülen sample rate (Hz). */
     val sampleRatesHz: Map<String, Float>,
+    // --- Pulse lock tracker debug (kullanıcı mimarisi: SEARCHING/ACQUIRING/LOCKED) ---
+    /** Lock state — SEARCHING/ACQUIRING/LOCKED. */
+    val lockState: String,
+    /** Locked BPM (null = aranıyoı). */
+    val lockedBpm: Int?,
+    /** Lock yaşı (tick sayısı). */
+    val lockAgeTicks: Int,
+    /** State değişim sebebi (debug). */
+    val switchReason: String,
+    /** Raw candidate BPM (en güçlü ACF peak). */
+    val rawCandidateBpm: Int?,
+    /** Half candidate (raw/2). */
+    val halfCandidateBpm: Int?,
+    /** Double candidate (raw×2). */
+    val doubleCandidateBpm: Int?,
+    /** Raw ACF gücü. */
+    val rawAcfStrength: Float?,
+    /** Half ACF gücü. */
+    val halfAcfStrength: Float?,
+    /** Double ACF gücü. */
+    val doubleAcfStrength: Float?,
+    /** Seçilen hypothesis etiketi. */
+    val selectedHypothesis: String,
+    /** Watch referans BPM snapshot (sadece debug CSV, runtime kararı değil). */
+    val watchBpm: Int?,
 )
 
 /** CSV'de analiz tablosu için sabit başlık sırası. */
@@ -66,4 +91,17 @@ internal val ANALYSIS_HEADER = listOf(
     "sample_rate_accel_hz",
     "sample_rate_gyro_hz",
     "sample_rate_linear_hz",
+    // Pulse lock tracker debug alanları.
+    "lock_state",
+    "locked_bpm",
+    "lock_age_ticks",
+    "switch_reason",
+    "raw_candidate_bpm",
+    "half_candidate_bpm",
+    "double_candidate_bpm",
+    "raw_acf_strength",
+    "half_acf_strength",
+    "double_acf_strength",
+    "selected_hypothesis",
+    "watch_bpm",
 )

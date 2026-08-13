@@ -42,5 +42,10 @@ val PulseSoftRed = Color(0xFFE0554E)
 val Amber = Color(0xFFE0A23A)
 val AmberDim = Color(0xFF8A6A24)
 
+// LOCKED — güven yüksek, yeşil arka plan (kullanıcı UI isteği)
+val LockedGreen = Color(0xFF2E6B4A)
+val LockedGreenDim = Color(0xFF1A3D2A)
+val LockedGreenGlow = Color(0xFF4A9D72)
+
 // No pulse (nötr)
 val NeutralGray = Color(0xFF6A6A72)

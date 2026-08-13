@@ -19,6 +19,8 @@ import androidx.compose.ui.graphics.TileMode
 import com.kadirjohn.lulse.ui.animation.rememberBreathCycle
 import com.kadirjohn.lulse.ui.theme.Amber
 import com.kadirjohn.lulse.ui.theme.Black
+import com.kadirjohn.lulse.ui.theme.LockedGreenDim
+import com.kadirjohn.lulse.ui.theme.LockedGreenGlow
 import com.kadirjohn.lulse.ui.theme.MotionCrimson
 import com.kadirjohn.lulse.ui.theme.MotionDeepRed
 import com.kadirjohn.lulse.ui.theme.MotionEmber
@@ -118,14 +120,15 @@ fun AnimatedGradientBackground(
     )
 }
 
-/** Duruma göre ikincil vurgu rengi. */
-enum class Accent { NEUTRAL, READY, PULSE, AMBER }
+/** Duruma göre ikincil vurgu rengi. LOCKED_GREEN — güven yüksek, yeşil arka plan. */
+enum class Accent { NEUTRAL, READY, PULSE, AMBER, LOCKED_GREEN }
 
 private fun accentBrush(accent: Accent, cx: Float, cy: Float, radius: Float, breath: Float): Brush {
     val (c1, c2) = when (accent) {
         Accent.READY -> ReadyGlow to NeutralGray
         Accent.PULSE -> PulseWarmWhite to PulseSoftRed
         Accent.AMBER -> Amber to NeutralGray
+        Accent.LOCKED_GREEN -> LockedGreenGlow to LockedGreenDim
         Accent.NEUTRAL -> NeutralGray to Black
     }
     val alpha = (0.10f + 0.06f * breath)

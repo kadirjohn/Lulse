@@ -40,6 +40,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val motionAnalyzer = MotionAnalyzer()
     private val measurementStateMachine = MeasurementStateMachine()
     private val signalProcessor = SignalProcessor()
+    // Pulse lock tracker — SEARCHING/ACQUIRING/LOCKED state (kullanıcı mimarisi).
+    // Cold-start harmonic lock sorununu çözer: naif persistence yerine aşamalı kilit.
+    private val pulseLockTracker = com.kadirjohn.lulse.domain.signal.PulseLockTracker()
 
     // Watch6 referansı — opsiyonel. Watch yoksa bağlantı Disconnected kalır,
     // telefon ölçümü etkilenmez (docs 05 non-negotiable).
@@ -148,6 +151,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 signalProcessor.process(ringBuffer.snapshot())
             } else null
 
+        // Pulse lock tracker — hypotheses'i besle, SEARCHING/ACQUIRING/LOCKED.
+        // Hareketliyse motion gating: pulse null → tracker no_signal → SEARCHING.
+        val lockResult = pulseLockTracker.update(pulse?.hypotheses)
+        // Lock sonucu UI'da gösterilen BPM — LOCKED'ta locked BPM, ACQUIRING/SEARCHING'de null.
+        val lockedBpm: Int? = lockResult.bpm
+
         val nowMs = System.currentTimeMillis()
         val (measurementState, _) = measurementStateMachine.update(motionState, pulse, nowMs)
 
@@ -157,11 +166,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 measurementState = measurementState,
                 motionScore = score,
                 phoneUpright = score.phoneUpright,
-                bpm = measurementStateMachine.lastPulse?.bpm,
+                // UI BPM'i lock sonucundan — LOCKED'ta gerçek BPM, değilse null ("Nabız aranıyor").
+                bpm = lockedBpm ?: measurementStateMachine.lastPulse?.bpm,
                 confidencePct = measurementStateMachine.lastPulse?.let { (it.confidence * 100).toInt() },
                 signalQuality = qualityFromConfidence(measurementStateMachine.lastPulse?.confidence),
                 lastBeatNanos = measurementStateMachine.lastPulse?.lastBeatNanos,
                 recentBeatNanos = measurementStateMachine.lastPulse?.recentBeatNanos ?: emptyList(),
+                lockState = lockResult.state.name,
                 debug = prev.debug.copy(
                     motionScore = score.total,
                     accelVariance = score.accelVariance,
@@ -196,6 +207,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 bufferDropped = ringBuffer.droppedCount(),
                 sampleRatesHz = sampleRateEstimators.mapKeys { it.key.name }
                     .mapValues { it.value.hz() },
+                // Pulse lock tracker debug alanları.
+                lockState = lockResult.state.name,
+                lockedBpm = lockResult.lockedBpm,
+                lockAgeTicks = lockResult.lockAgeTicks,
+                switchReason = lockResult.switchReason,
+                rawCandidateBpm = lockResult.rawCandidateBpm,
+                halfCandidateBpm = pulse?.hypotheses?.halfBpm?.toInt(),
+                doubleCandidateBpm = pulse?.hypotheses?.doubleBpm?.toInt(),
+                rawAcfStrength = pulse?.hypotheses?.rawStrength,
+                halfAcfStrength = pulse?.hypotheses?.halfStrength,
+                doubleAcfStrength = pulse?.hypotheses?.doubleStrength,
+                selectedHypothesis = lockResult.selectedHypothesis,
+                watchBpm = wearRepository.latestReference.value?.bpm,
             ),
         )
         pushSensorDebug()

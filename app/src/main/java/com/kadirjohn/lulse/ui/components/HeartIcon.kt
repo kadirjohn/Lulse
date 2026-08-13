@@ -55,19 +55,35 @@ fun HeartIcon(
         val w = size.width
         val h = size.height
         val cx = w / 2f
-        // Kalp path'i — iki yay + üçgen alt.
+        // Kalp path'i — daha simetrik, belirgin loblar, düzgün tepe (kullanıcı UI isteği).
+        // İki lob eşit yükseklikte, alt sivri ama yumuşak.
         val heartPath = Path().apply {
-            val top = h * 0.32f
-            val bottom = h * 0.78f
+            val top = h * 0.30f       // lob tepesi
+            val bottom = h * 0.80f    // alt sivri
+            val lobeDip = h * 0.45f   // iki lob arası çukur (orta tepe)
             moveTo(cx, bottom)
+            // Sol lob — alttan yukarı, dışbükey yay.
             cubicTo(
-                x1 = w * 0.08f, y1 = h * 0.52f,
-                x2 = w * 0.18f, y2 = top - h * 0.04f,
-                x3 = cx, y3 = h * 0.46f,
+                x1 = w * 0.04f, y1 = h * 0.55f,
+                x2 = w * 0.10f, y2 = top,
+                x3 = cx - w * 0.04f, y3 = top,
             )
+            // Sol lob içi → orta çukur.
             cubicTo(
-                x1 = w * 0.82f, y1 = top - h * 0.04f,
-                x2 = w * 0.92f, y2 = h * 0.52f,
+                x1 = cx - w * 0.02f, y1 = lobeDip - h * 0.02f,
+                x2 = cx, y2 = lobeDip,
+                x3 = cx, y3 = lobeDip,
+            )
+            // Orta çukur → sağ lob içi.
+            cubicTo(
+                x1 = cx, y1 = lobeDip,
+                x2 = cx + w * 0.02f, y2 = lobeDip - h * 0.02f,
+                x3 = cx + w * 0.04f, y3 = top,
+            )
+            // Sağ lob — tepeden aşağı, dışbükey yay.
+            cubicTo(
+                x1 = w * 0.90f, y1 = top,
+                x2 = w * 0.96f, y2 = h * 0.55f,
                 x3 = cx, y3 = bottom,
             )
             close()
