@@ -330,11 +330,17 @@ class SignalProcessor(
     /**
      * Harmonik hipotez testi — candidate'lerden fundamental BPM üret.
      *
-     * **Sıkılaştırılmış (v2):** high candidate (>110 bpm) SADECE zayıfsa böl.
-     * High güçlü ve fundamental da güçlüyse YÜKSEK olanı seç — çünkü SCG'de
-     * tek kalp atışı S1/S2 gibi birden fazla güçlü mekanik event üretir; 2×
-     * peak gerçektir, her zaman harmonik hat değildir. Eski (v1) kural yarı güçlü
-     * her candidate'i harmonik sanıp aşırı bölüyordu (93→46→51 cascade).
+     * **v3: göreli güç karşılaştırması.** Nefes gürültüsü, gerçek beat'in 2×
+     * harmoniğini (high candidate) yapay olarak güçlendirebilir — o zaman high
+     * ve fundamental ikisi de güçlü görünür. Eski v2 "high güçlüyse olduğu gibi
+     * bırak" kuralı bu durumda doubling'i kaçırıyordu (159 veriyordu, gerçek 82).
+     *
+     * v3 kuralı:
+     *  - high candidate, fundamental'dan **belirgin** güçlü (high > fund×1.3
+     *    ve high > 0.30) → high gerçek beat (SCG'de 2× mekanik event gerçektir).
+     *  - değilse (fundamental güçlü ya da eşdeğer) → fundamental'ı seç.
+     *    Gerçek beat periyodunun ACF'i genelde daha tutarlı patern'dir; nefesli
+     *    gürültüde high yapay güçlenir ama fundamental yine güçlü kalır.
      *
      * [fs] sample rate — lag sample cinsinden, BPM = 60*fs/lag.
      *
@@ -358,17 +364,18 @@ class SignalProcessor(
             if (b > harmonicTestThreshold) {
                 val half = b / 2f
                 if (half in minBpm.toFloat()..harmonicTestThreshold) {
-                    // half'a yakın candidate ara (güç eşiği yok — var mı diye bak).
+                    // half'a yakın candidate ara.
                     val fundCand = allBpms.firstOrNull { (b2, _, _) ->
                         abs(b2 - half) / half < 0.10f
                     }
                     if (fundCand != null) {
                         val (_, fundStr, fundLag) = fundCand
-                        // v2: high SADECE zayıfsa böl.
-                        // high'ın gücü en güçlü candidate'den belirgin düşükse (0.55×)
-                        // VE fundamental yeterince güçlüyse → high muhtemelen harmonik.
-                        // High güçlüyse → 2× mekanik event gerçek beat, olduğu gibi bırak.
-                        if (s < bestStr * 0.55f && fundStr > minFundamentalStrength) {
+                        // v3: göreli güç karşılaştırması.
+                        // high belirgin güçlü (fundamental'dan 1.3× güçlü + yeterli mutlak güç)
+                        // → high gerçek beat (2× mekanik event), olduğu gibi bırak.
+                        // değilse → fundamental seç (doubling çözümü).
+                        val highIsRealBeat = s > fundStr * 1.3f && s > 0.30f
+                        if (!highIsRealBeat && fundStr > minFundamentalStrength) {
                             val conf = min(0.95f, fundStr + 0.05f)
                             return DisambResult(half, conf, "harmonic->fundamental", fundLag)
                         }

@@ -5,13 +5,13 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,7 +25,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -39,14 +38,15 @@ import kotlin.math.roundToInt
  * Minimize edilmiş debug paneli — ekranda serbestçe sürüklenen yuvarlak balon.
  *
  * Android'in chat bubble / picture-in-picture mantığı gibi:
- *  - Balonu **serbestçe sürükle** (her yöne, akıcı) — balon ekran içinde kalır,
- *    bırakınca en yakın **kenara mıknatıs gibi yapışır** (yumuşak spring animasyonu).
+ *  - Balonu **serbestçe sürükle** (her yöne) — balon **parmağı takip eder** (anlık,
+ *    gecikmesiz), ekran içinde kalır.
+ *  - Bırakınca en yakın **sol/sağ kenara mıknatıs gibi yapışır** (yumuşak spring).
  *  - Balona **tıkla** (hareketsiz dokunuş) → debug panelini tekrar tam aç.
  *  - Debug panelini **kapat** (çarpı) → balon da kaybolur.
  *
- * Sürükleme sırasında konum anlık güncellenir; bırakınca kenara yapışır ve
- * ViewModel'e kaydedilir. Bu, ölçümü engellemeyen, oyunlaştırılmış bir debug
- * erişim noktasıdır.
+ * Tık ve sürükle ayrı pointerInput bloklarında — çakışmazlar. Sürükleme sırasında
+ * konum `Animatable.snapTo` ile anlık güncellenir (parmağı takip eder); bırakınca
+ * `animateTo` ile kenara yapışır ve ViewModel'e kaydedilir.
  *
  * @param visible Balon görünürlüğü (debugMinimized state'i).
  * @param offsetX, offsetY Balonun kaydedilmiş konumu (px, ekran sol-üst köşesinden).
@@ -67,19 +67,15 @@ fun DebugBubble(
     val scope = rememberCoroutineScope()
     val bubbleSize = 52.dp
     val bubblePx = with(density) { bubbleSize.toPx() }
-    val marginPx = with(density) { 8.dp.toPx() }
-    // Status bar yüksekliği — balon bunun altında kalsın.
+    val marginPx = with(density) { 10.dp.toPx() }
     val statusBarTop = with(density) { WindowInsets.statusBars.getTop(density) }
 
-    // Balonun ekran genişliği — balon ekranı dolduran bir overlay içinde serbest dolaşır.
-    // Ekran boyutunu overlay layout'undan öğren.
     var screenWidth by remember { mutableStateOf(0f) }
     var screenHeight by remember { mutableStateOf(0f) }
 
-    // Animatable konumlar — sürükleme sırasında anlık, bırakınca spring ile kenara yapışır.
+    // Animatable konum — sürüklemede anlık (parmağı takip), bırakınca spring ile kenara yapış.
     val animX = remember { Animatable(offsetX) }
     val animY = remember { Animatable(offsetY) }
-    // Dışarıdan gelen konum değişimi (ViewModel reset vb.) → anim'i güncelle.
     LaunchedEffect(offsetX, offsetY) {
         if (offsetX != animX.value || offsetY != animY.value) {
             animX.snapTo(offsetX)
@@ -97,7 +93,6 @@ fun DebugBubble(
     ) {
         if (screenWidth == 0f || screenHeight == 0f) return@Box
 
-        // İzin verilen hareket aralığı — balon ekran içinde + margin kalır.
         val minX = marginPx
         val maxX = (screenWidth - bubblePx - marginPx).coerceAtLeast(marginPx)
         val minY = (statusBarTop + marginPx).coerceAtLeast(marginPx)
@@ -107,7 +102,7 @@ fun DebugBubble(
         LaunchedEffect(screenWidth, screenHeight) {
             if (screenWidth > 0 && screenHeight > 0 && animX.value == 0f && animY.value == 0f) {
                 val initX = (screenWidth - bubblePx - marginPx)
-                val initY = (statusBarTop + marginPx)
+                val initY = (statusBarTop + marginPx).coerceAtLeast(marginPx)
                 animX.snapTo(initX)
                 animY.snapTo(initY)
                 onDragEnd(initX, initY)
@@ -125,42 +120,36 @@ fun DebugBubble(
                 .size(bubbleSize)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.88f))
-                .pointerInput(screenWidth, screenHeight) {
-                    // Tek pointerInput: sürükleme + tık. Hareket eşiği altında = tık.
-                    var totalDrag = 0f
+                // Tık (hareketsiz dokunuş) → paneli aç. Ayrı pointerInput —
+                // drag ile çakışmaz; Compose sırasıyla iki detectoru da dener.
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = { onTap() })
+                }
+                // Sürükleme → parmağı anlık takip et, bırakınca kenara mıknatıs yapış.
+                .pointerInput(Unit) {
                     detectDragGestures(
-                        onDragStart = { totalDrag = 0f },
+                        onDragStart = { },
                         onDrag = { change, dragAmount ->
                             change.consume()
-                            totalDrag += kotlin.math.abs(dragAmount.x) + kotlin.math.abs(dragAmount.y)
-                            // Anlık konum güncelle (ekran içine klip).
+                            // Anlık konum — parmağı takip eder (spring değil, gecikmesiz).
                             scope.launch {
-                                animX.snapTo(
-                                    (animX.value + dragAmount.x).coerceIn(minX, maxX),
-                                )
-                                animY.snapTo(
-                                    (animY.value + dragAmount.y).coerceIn(minY, maxY),
-                                )
+                                animX.snapTo((animX.value + dragAmount.x).coerceIn(minX, maxX))
+                                animY.snapTo((animY.value + dragAmount.y).coerceIn(minY, maxY))
                             }
                         },
                         onDragEnd = {
-                            if (totalDrag < 10f) {
-                                // Hareketsiz dokunuş → tık: paneli aç.
-                                onTap()
-                            } else {
-                                // Sürükleme bitti → en yakın sol/sağ kenara mıknatıs yapış.
-                                val targetX = if (animX.value < (screenWidth / 2f)) minX else maxX
-                                scope.launch {
-                                    animX.animateTo(
-                                        targetValue = targetX,
-                                        animationSpec = spring(
-                                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                                            stiffness = Spring.StiffnessLow,
-                                        ),
-                                    )
-                                    // Yapışma bitince ViewModel'e kaydet.
-                                    onDragEnd(animX.value, animY.value)
-                                }
+                            // Bırakınca en yakın sol/sağ kenara mıknatıs yapış.
+                            val targetX = if (animX.value < (screenWidth / 2f)) minX else maxX
+                            scope.launch {
+                                animX.animateTo(
+                                    targetValue = targetX,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                )
+                                // Yapışma bitince ViewModel'e kaydet.
+                                onDragEnd(animX.value, animY.value)
                             }
                         },
                     )
