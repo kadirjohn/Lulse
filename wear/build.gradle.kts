@@ -63,11 +63,6 @@ dependencies {
     implementation(project(":shared"))
     implementation(libs.kotlinx.serialization.json)
 
-    // Samsung Health Sensor SDK — manuel indirilen AAR (docs 02).
-    // wear/libs/samsung-health-sensor-api.aar yoksa Gradle sync patlamasın:
-    // stub HealthSensorSource ile derlenir, gerçek HR için AAR gerekir.
-    val samsungAar = file("libs/samsung-health-sensor-api.aar")
-    if (samsungAar.exists()) {
-        implementation(files(samsungAar))
-    }
+    // Samsung Health Sensor SDK v1.4.1 — resmi Samsung örnek paketinden.
+    implementation(files("libs/samsung-health-sensor-api.aar"))
 }

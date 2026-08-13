@@ -109,8 +109,8 @@ class WearTransportRepository(
             protocolVersion = Protocol.PROTOCOL_VERSION,
             wearAppVersion = wearAppVersion,
             watchModel = watchModel,
-            sdkReady = false, // AAR yoksa false; Samsung impl geldiğinde true
-            heartRateTrackerSupported = true, // stub her zaman "destekli" simulation
+            sdkReady = healthSource.sdkReady,
+            heartRateTrackerSupported = healthSource.heartRateTrackerSupported,
             trackingState = healthSource.state.value.name,
         )
         send(nodeId, Protocol.PATH_HELLO_ACK, json.encodeToString(HelloAck.serializer(), ack))
@@ -119,8 +119,8 @@ class WearTransportRepository(
     private fun sendStatusResponse(nodeId: String) {
         val resp = StatusResponse(
             trackingState = healthSource.state.value.name,
-            hrStatus = null, // son HR status — health source'dan alınabilir
-            lastValidIbiMs = null,
+            hrStatus = healthSource.lastHeartRateStatus,
+            lastValidIbiMs = healthSource.lastValidIbiMs,
         )
         send(nodeId, Protocol.PATH_STATUS_RESPONSE, json.encodeToString(StatusResponse.serializer(), resp))
     }
@@ -179,8 +179,7 @@ class WearTransportRepository(
      * SESSION_START ile sessionId'li yeniden başlatılır. Stub AAR'siz 72 BPM üretir.
      */
     fun startHealthTrackingForPreview() {
-        if (healthSource.state.value == WatchTrackingState.UNINITIALIZED ||
-            healthSource.state.value == WatchTrackingState.SERVICE_READY) {
+        if (_currentSession.value == null) {
             healthSource.startTracking(sessionId = null)
         }
     }
@@ -188,7 +187,7 @@ class WearTransportRepository(
     // --- UI accessor'ları (MainActivity için) ---
 
     /** Health source tracking durumu (UI bu state'e göre içerik seçer). */
-    fun healthTrackingState(): WatchTrackingState = healthSource.state.value
+    fun healthTrackingState(): StateFlow<WatchTrackingState> = healthSource.state
 
     /** Health source HR olay akışı (UI son BPM/IBI'yı buradan okur). */
     fun healthEvents(): kotlinx.coroutines.flow.SharedFlow<WatchHeartRateEvent> = healthSource.events

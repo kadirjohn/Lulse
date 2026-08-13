@@ -1,8 +1,10 @@
 package com.kadirjohn.lulse.wear
 
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -23,9 +26,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.Text
-import com.kadirjohn.lulse.wear.data.health.StubHealthSensorSource
+import androidx.core.content.ContextCompat
+import com.kadirjohn.lulse.wear.data.health.SamsungHealthSensorSource
 import com.kadirjohn.lulse.wear.data.transport.TransportHolder
-import com.kadirjohn.lulse.wear.domain.WatchHeartRateEvent
 import com.kadirjohn.lulse.wear.domain.WatchTrackingState
 import com.kadirjohn.lulse.wear.domain.uiLabel
 import com.kadirjohn.lulse.wear.ui.LulseYellow
@@ -43,14 +46,26 @@ import kotlinx.coroutines.flow.collect
  * [WearMessageListenerService] aynı instance'ı paylaşır.
  */
 class MainActivity : ComponentActivity() {
+    private val heartRatePermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) {
+            TransportHolder.get(this).startHealthTrackingForPreview()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Transport'ı başlat (capability advertise + health source).
-        TransportHolder.get(this)
-        // Watch tek başına açıldığında da HR göster — stub'ı hemen başlat
+        val transport = TransportHolder.get(this)
+        // Watch tek başına açıldığında da HR göster — gerçek tracker'ı hemen başlat
         // (telefon SESSION_START göndermese de UI'da BPM görünsün; telefon bağlanınca
-        // sessionId ile yeniden başlatılır). Stub AAR'siz 72 BPM üretir.
-        TransportHolder.get(this).startHealthTrackingForPreview()
+        // sessionId ile devam eder). İzin yoksa kaynak PERMISSION_REQUIRED olur.
+        transport.startHealthTrackingForPreview()
+        val permission = SamsungHealthSensorSource.requiredPermission()
+        if (ContextCompat.checkSelfPermission(this, permission) != PackageManager.PERMISSION_GRANTED) {
+            heartRatePermissionLauncher.launch(permission)
+        }
         setContent { WearApp() }
     }
 }
@@ -59,14 +74,14 @@ class MainActivity : ComponentActivity() {
 fun WearApp() {
     val context = LocalContext.current
     val transport = remember { TransportHolder.get(context) }
-    val trackingState by remember { mutableStateOf(transport.healthTrackingState()) }
+    val trackingState by transport.healthTrackingState().collectAsState()
     var bpm by remember { mutableStateOf<Int?>(null) }
     var lastIbi by remember { mutableStateOf<Int?>(null) }
 
     // HR olaylarını dinle — transport health source events'ini expose eder.
     LaunchedEffect(Unit) {
         transport.healthEvents().collect { event ->
-            bpm = event.heartRateBpm
+            bpm = event.heartRateBpm.takeIf { event.heartRateStatus == 1 }
             lastIbi = event.validIbiValuesMs.lastOrNull()
         }
     }

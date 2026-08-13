@@ -29,6 +29,9 @@ class StubHealthSensorSource(
     private val scope: CoroutineScope,
 ) : HealthSensorSource {
 
+    override val sdkReady: Boolean = false
+    override val heartRateTrackerSupported: Boolean = false
+
     private val _state = MutableStateFlow(WatchTrackingState.UNINITIALIZED)
     override val state: StateFlow<WatchTrackingState> = _state.asStateFlow()
 
@@ -38,6 +41,10 @@ class StubHealthSensorSource(
     private var job: Job? = null
     private var sequence = 0L
     private var sessionId: String? = null
+    @Volatile override var lastHeartRateStatus: Int? = null
+        private set
+    @Volatile override var lastValidIbiMs: Int? = null
+        private set
 
     override fun startTracking(sessionId: String?) {
         this.sessionId = sessionId
@@ -57,6 +64,8 @@ class StubHealthSensorSource(
                 val ibiCount = if (tickIndex % 5 == 0) 2 else 1
                 val ibis = List(ibiCount) { 833 + (tickIndex % 3) }
                 val statuses = List(ibiCount) { 0 } // IBI_STATUS=0 valid
+                lastHeartRateStatus = 1
+                lastValidIbiMs = ibis.lastOrNull()
                 _events.emit(
                     WatchHeartRateEvent(
                         sessionId = sessionId,

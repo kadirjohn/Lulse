@@ -5,8 +5,15 @@
     <uses-feature android:name="android.hardware.type.watch" />
 
     <uses-permission android:name="android.permission.WAKE_LOCK" />
-    <!-- Samsung Health Sensor SDK için body sensors (runtime permission). -->
+    <!-- Android 15 ve öncesi Samsung Health Sensor SDK runtime izni. -->
     <uses-permission android:name="android.permission.BODY_SENSORS" />
+    <!-- Android 16+ kalp hızı runtime izni. -->
+    <uses-permission android:name="android.permission.health.READ_HEART_RATE" />
+
+    <!-- Samsung Health Tracking Service sorgusu (Samsung HRTracker örneği). -->
+    <queries>
+        <package android:name="com.samsung.android.service.health" />
+    </queries>
 
     <application
         android:allowBackup="true"
@@ -14,6 +21,14 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <uses-library
+            android:name="com.google.android.wearable"
+            android:required="true" />
+
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="true" />
 
         <!-- Lulse Wear UI — round, OLED black, yellow accent. -->
         <activity

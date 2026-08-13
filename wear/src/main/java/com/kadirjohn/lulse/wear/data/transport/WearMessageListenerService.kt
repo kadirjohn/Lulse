@@ -3,7 +3,7 @@ package com.kadirjohn.lulse.wear.data.transport
 import android.content.Context
 import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
-import com.kadirjohn.lulse.wear.data.health.StubHealthSensorSource
+import com.kadirjohn.lulse.wear.data.health.SamsungHealthSensorSource
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -47,7 +47,7 @@ object TransportHolder {
     private fun create(context: Context): WearTransportRepository {
         val app = context.applicationContext
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-        val healthSource = StubHealthSensorSource(scope)
+        val healthSource = SamsungHealthSensorSource(app, scope)
         val transport = WearTransportRepository(app, healthSource, scope)
         transport.advertiseCapability()
         return transport
