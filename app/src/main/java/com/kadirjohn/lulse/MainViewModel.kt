@@ -3,6 +3,7 @@ package com.kadirjohn.lulse
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.kadirjohn.lulse.data.recording.AnalysisFrame
 import com.kadirjohn.lulse.data.recording.BreathingCondition
 import com.kadirjohn.lulse.data.recording.Placement
 import com.kadirjohn.lulse.data.recording.RecordingManager
@@ -117,6 +118,27 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 ),
             )
         }
+        // Aktif kayıtta bu analiz tick'inin debug snapshot'ını CSV'ye topla.
+        recordingManager.addAnalysisFrame(
+            AnalysisFrame(
+                timestampNanos = nowNanos,
+                bpm = pulse?.bpm,
+                confidence = pulse?.confidence,
+                verdict = pulse?.verdict,
+                motionState = motionState,
+                measurementState = measurementState,
+                motionScoreTotal = score.total,
+                accelVariance = score.accelVariance,
+                gyroEnergy = score.gyroEnergy,
+                jerk = score.jerkMagnitude,
+                orientation = score.orientation,
+                phoneUpright = score.phoneUpright,
+                bufferSize = ringBuffer.size,
+                bufferDropped = ringBuffer.droppedCount(),
+                sampleRatesHz = sampleRateEstimators.mapKeys { it.key.name }
+                    .mapValues { it.value.hz() },
+            ),
+        )
         pushSensorDebug()
     }
 

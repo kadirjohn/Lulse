@@ -39,3 +39,4 @@ app_title_explanation_start/
 # Yerel sensör kayıtları (kişisel veri — commit edilmesin)
 lulsedata/
 pulsedata/
+.kotlin/errors/

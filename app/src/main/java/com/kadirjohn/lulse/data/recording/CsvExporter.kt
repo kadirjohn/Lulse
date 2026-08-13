@@ -33,13 +33,14 @@ class CsvExporter {
     )
 
     /**
-     * Sample'ları Downloads/Lulse/ altına CSV olarak yazar.
+     * Sample'ları (ve analiz tick'lerini) Downloads/Lulse/ altına CSV olarak yazar.
      * @return [ExportResult]; publicFile null ise yazma başarısız (appFile yine de olabilir).
      */
     fun exportToDownloads(
         context: Context,
         samples: List<SensorSample>,
         metadata: SessionMetadata,
+        analysisFrames: List<AnalysisFrame> = emptyList(),
     ): ExportResult {
         val name = fileName(metadata)
         val relative = "Lulse/$name"
@@ -48,11 +49,11 @@ class CsvExporter {
         val appDir = File(context.filesDir, "lulse_sessions").apply { mkdirs() }
         val appFile = File(appDir, name)
         runCatching {
-            appFile.outputStream().use { os -> writeTo(os, samples, metadata) }
+            appFile.outputStream().use { os -> writeTo(os, samples, metadata, analysisFrames) }
         }.getOrNull()
 
         // 2) Public Downloads/Lulse/ — MediaStore ile.
-        val publicFile = writeToDownloads(context, relative, samples, metadata)
+        val publicFile = writeToDownloads(context, relative, samples, metadata, analysisFrames)
         return ExportResult(
             publicFile = publicFile,
             appFile = appFile,
@@ -65,6 +66,7 @@ class CsvExporter {
         relativePath: String,
         samples: List<SensorSample>,
         metadata: SessionMetadata,
+        analysisFrames: List<AnalysisFrame>,
     ): File? {
         val resolver = context.contentResolver
         val name = relativePath.substringAfterLast('/')
@@ -80,7 +82,7 @@ class CsvExporter {
         }
         val uri = resolver.insert(collection, values) ?: return null
         return runCatching {
-            resolver.openOutputStream(uri, "w")?.use { os -> writeTo(os, samples, metadata) }
+            resolver.openOutputStream(uri, "w")?.use { os -> writeTo(os, samples, metadata, analysisFrames) }
                 ?: return null
             // Yazma tamam — dosyayı görünür yap.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -91,10 +93,26 @@ class CsvExporter {
         }.getOrNull()
     }
 
-    /** Verilen sample + metadata'yı [OutputStream]'e yazar. */
-    fun writeTo(out: OutputStream, samples: List<SensorSample>, metadata: SessionMetadata) {
+    /**
+     * Verilen sample + metadata + analiz tick'lerini [OutputStream]'e yazar.
+     *
+     * Dosya yapısı:
+     *  - # önekli metadata satırları
+     *  - sensör tablosu (CSV_HEADER) — raw IMU verisi, satır başına 1 sample
+     *  - boş ayraç satırı
+     *  - # analysis frames başlığı + analiz tablosu (ANALYSIS_HEADER) —
+     *    her analiz tick (~200ms) bir satır: bpm, confidence, verdict,
+     *    motionState, measurementState, bufferSize, vb. Algoritmanın canlıda
+     *    ne ürettiğini offline incelemek için.
+     */
+    fun writeTo(
+        out: OutputStream,
+        samples: List<SensorSample>,
+        metadata: SessionMetadata,
+        analysisFrames: List<AnalysisFrame> = emptyList(),
+    ) {
         out.bufferedWriter().use { w ->
-            writeMetadata(w, metadata, sampleCount = samples.size)
+            writeMetadata(w, metadata, sampleCount = samples.size, analysisCount = analysisFrames.size)
             w.appendLine(CSV_HEADER.joinToString(","))
             samples.forEach { s ->
                 w.appendLine(
@@ -108,10 +126,44 @@ class CsvExporter {
                     ).joinToString(","),
                 )
             }
+            // İkinci tablo: analiz tick'leri (debug snapshot'ları).
+            if (analysisFrames.isNotEmpty()) {
+                w.appendLine()
+                w.appendLine("# analysis frames (per ~200ms tick)")
+                w.appendLine(ANALYSIS_HEADER.joinToString(","))
+                analysisFrames.forEach { f ->
+                    w.appendLine(
+                        listOf(
+                            f.timestampNanos.toString(),
+                            f.bpm?.toString() ?: "",
+                            f.confidence?.toString() ?: "",
+                            f.verdict ?: "",
+                            f.motionState.name,
+                            f.measurementState.name,
+                            f.motionScoreTotal.toString(),
+                            f.accelVariance.toString(),
+                            f.gyroEnergy.toString(),
+                            f.jerk.toString(),
+                            f.orientation.name,
+                            f.phoneUpright.toString(),
+                            f.bufferSize.toString(),
+                            f.bufferDropped.toString(),
+                            f.sampleRatesHz["ACCELEROMETER"]?.toString() ?: "",
+                            f.sampleRatesHz["GYROSCOPE"]?.toString() ?: "",
+                            f.sampleRatesHz["LINEAR_ACCELERATION"]?.toString() ?: "",
+                        ).joinToString(","),
+                    )
+                }
+            }
         }
     }
 
-    private fun writeMetadata(w: java.io.BufferedWriter, m: SessionMetadata, sampleCount: Int) {
+    private fun writeMetadata(
+        w: java.io.BufferedWriter,
+        m: SessionMetadata,
+        sampleCount: Int,
+        analysisCount: Int = 0,
+    ) {
         w.appendLine("# Lulse sensor session")
         w.appendLine("# device_model=${m.deviceModel}")
         w.appendLine("# app_version=${m.appVersion}")
@@ -124,6 +176,7 @@ class CsvExporter {
         w.appendLine("# reference_bpm=${m.referenceBpm ?: ""}")
         w.appendLine("# sensors=${m.sensorTypes.joinToString(";")}")
         w.appendLine("# count=$sampleCount")
+        w.appendLine("# analysis_frames=$analysisCount")
     }
 
     private fun fileName(m: SessionMetadata): String {

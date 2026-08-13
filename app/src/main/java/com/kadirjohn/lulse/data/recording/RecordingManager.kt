@@ -33,12 +33,15 @@ class RecordingManager(
 
     // Aktif seansın biriken sample'ları. recording sırasında doldurulur.
     private val activeSamples = mutableListOf<SensorSample>()
+    // Aktif seansın biriken analiz tick'leri (debug snapshot'ları).
+    private val activeAnalysisFrames = mutableListOf<AnalysisFrame>()
     private var sessionStartMs: Long = 0L
 
-    /** Kaydı başlat. Önceki birikmiş sample'ları temizle. */
+    /** Kaydı başlat. Önceki birikmiş sample'ları ve analiz frame'leri temizle. */
     fun start() {
         synchronized(this) {
             activeSamples.clear()
+            activeAnalysisFrames.clear()
             sessionStartMs = System.currentTimeMillis()
             _state.value = State(recording = true, sessionId = sessionStartMs)
         }
@@ -50,6 +53,18 @@ class RecordingManager(
         synchronized(this) {
             activeSamples.add(sample)
             _state.value = _state.value.copy(recordedCount = activeSamples.size)
+        }
+    }
+
+    /**
+     * Aktif seansa bir analiz tick snapshot'ı ekle (~200ms'de bir çağrılır).
+     * Kayıt kapalıysa yok sayılır. CSV'de sensör verisinden sonra ikinci tablo
+     * olarak yazılır — algoritmanın canlıda ne ürettiğini offline incelemek için.
+     */
+    fun addAnalysisFrame(frame: AnalysisFrame) {
+        if (!_state.value.recording) return
+        synchronized(this) {
+            activeAnalysisFrames.add(frame)
         }
     }
 
@@ -66,11 +81,14 @@ class RecordingManager(
         breathing: BreathingCondition = BreathingCondition.UNSPECIFIED,
     ): java.io.File? {
         val samples: List<SensorSample>
+        val frames: List<AnalysisFrame>
         val start: Long
         synchronized(this) {
             samples = activeSamples.toList()
+            frames = activeAnalysisFrames.toList()
             start = sessionStartMs
             activeSamples.clear()
+            activeAnalysisFrames.clear()
         }
         val end = System.currentTimeMillis()
         val metadata = SessionMetadata(
@@ -81,7 +99,7 @@ class RecordingManager(
             breathingCondition = breathing,
             sensorTypes = SensorType.entries.map { it.name },
         )
-        val result = exporter.exportToDownloads(context, samples, metadata)
+        val result = exporter.exportToDownloads(context, samples, metadata, frames)
         // Debug panelde gösterilecek yol: public Downloads yolu (varsa) yoksa app kopyası.
         val shownPath = result.publicFile?.let { "Downloads/Lulse/${it.name}" }
             ?: result.appFile?.absolutePath
