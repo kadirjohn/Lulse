@@ -56,6 +56,7 @@ fun HomeScreen(
     onMinimizeDebug: () -> Unit,
     onRestoreDebug: () -> Unit,
     onUpdateBubbleOffset: (Float, Float) -> Unit,
+    onConnectWatch: () -> Unit,
     onDismissIntro: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -112,6 +113,7 @@ fun HomeScreen(
             onStopRecording = onStopRecording,
             onClose = onCloseDebug,
             onMinimize = onMinimizeDebug,
+            onConnectWatch = onConnectWatch,
         )
 
         // Minimize edilmiş debug balonu (sürüklenebilir, tıkla → panel aç).

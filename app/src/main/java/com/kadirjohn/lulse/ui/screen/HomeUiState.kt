@@ -62,4 +62,15 @@ data class DebugUiState(
     val lastExportPath: String? = null,
     val bufferDropped: Int = 0,
     val bufferSize: Int = 0,
+    // Watch reference (watch6 integration) — opsiyonel, watch yoksa hepsi null/false.
+    val watchConnected: Boolean = false,
+    val watchState: String = "",
+    val watchReferenceBpm: Int? = null,
+    val watchHrStatus: Int? = null,
+    val watchLastValidIbiMs: Int? = null,
+    val watchReferenceAgeMs: Long? = null,
+    val watchClockOffsetMs: Long? = null,
+    val watchClockRttMs: Long? = null,
+    val watchSyncQuality: String = "",
+    val watchSequence: Long = 0,
 )

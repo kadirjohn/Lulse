@@ -38,6 +38,7 @@ class MainActivity : ComponentActivity() {
                     onMinimizeDebug = viewModel::minimizeDebug,
                     onRestoreDebug = viewModel::restoreDebug,
                     onUpdateBubbleOffset = viewModel::updateBubbleOffset,
+                    onConnectWatch = viewModel::connectWatch,
                     onDismissIntro = viewModel::dismissIntro,
                 )
             }

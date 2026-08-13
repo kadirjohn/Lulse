@@ -6,6 +6,8 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.kadirjohn.lulse.data.sensor.SensorSample
+import com.kadirjohn.lulse.shared.ClockSyncFrame
+import com.kadirjohn.lulse.shared.WatchReferenceEvent
 import java.io.File
 import java.io.OutputStream
 import java.text.SimpleDateFormat
@@ -26,6 +28,25 @@ import java.util.Locale
  */
 class CsvExporter {
 
+    /** Watch referans olayları tablosu başlığı (docs 03 WATCH REFERENCE EVENTS columns). */
+    private val WATCH_REFERENCE_HEADER = listOf(
+        "watch_sequence", "session_id",
+        "watch_datapoint_timestamp", "watch_callback_elapsed_ns", "watch_send_elapsed_ns",
+        "phone_receive_elapsed_ns", "estimated_phone_datapoint_ns",
+        "heart_rate_bpm", "heart_rate_status",
+        "ibi_values_ms", "ibi_statuses", "valid_ibi_values_ms",
+        "clock_offset_ns", "clock_rtt_ns", "clock_uncertainty_ns",
+        "transport_age_ms",
+    )
+
+    /** Clock sync frame'leri tablosu başlığı (docs 03 ClockSyncFrame). */
+    private val CLOCK_SYNC_HEADER = listOf(
+        "session_id", "sync_id",
+        "t0_phone_ns", "t1_watch_ns", "t2_watch_ns", "t3_phone_ns",
+        "rtt_ns", "watch_minus_phone_offset_ns",
+        "accepted", "reason",
+    )
+
     data class ExportResult(
         val publicFile: File?,
         val appFile: File?,
@@ -41,6 +62,8 @@ class CsvExporter {
         samples: List<SensorSample>,
         metadata: SessionMetadata,
         analysisFrames: List<AnalysisFrame> = emptyList(),
+        watchRefEvents: List<WatchReferenceEvent> = emptyList(),
+        clockSyncFrames: List<ClockSyncFrame> = emptyList(),
     ): ExportResult {
         val name = fileName(metadata)
         val relative = "Lulse/$name"
@@ -49,11 +72,11 @@ class CsvExporter {
         val appDir = File(context.filesDir, "lulse_sessions").apply { mkdirs() }
         val appFile = File(appDir, name)
         runCatching {
-            appFile.outputStream().use { os -> writeTo(os, samples, metadata, analysisFrames) }
+            appFile.outputStream().use { os -> writeTo(os, samples, metadata, analysisFrames, watchRefEvents, clockSyncFrames) }
         }.getOrNull()
 
         // 2) Public Downloads/Lulse/ — MediaStore ile.
-        val publicFile = writeToDownloads(context, relative, samples, metadata, analysisFrames)
+        val publicFile = writeToDownloads(context, relative, samples, metadata, analysisFrames, watchRefEvents, clockSyncFrames)
         return ExportResult(
             publicFile = publicFile,
             appFile = appFile,
@@ -67,6 +90,8 @@ class CsvExporter {
         samples: List<SensorSample>,
         metadata: SessionMetadata,
         analysisFrames: List<AnalysisFrame>,
+        watchRefEvents: List<WatchReferenceEvent>,
+        clockSyncFrames: List<ClockSyncFrame>,
     ): File? {
         val resolver = context.contentResolver
         val name = relativePath.substringAfterLast('/')
@@ -82,7 +107,7 @@ class CsvExporter {
         }
         val uri = resolver.insert(collection, values) ?: return null
         return runCatching {
-            resolver.openOutputStream(uri, "w")?.use { os -> writeTo(os, samples, metadata, analysisFrames) }
+            resolver.openOutputStream(uri, "w")?.use { os -> writeTo(os, samples, metadata, analysisFrames, watchRefEvents, clockSyncFrames) }
                 ?: return null
             // Yazma tamam — dosyayı görünür yap.
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -110,9 +135,12 @@ class CsvExporter {
         samples: List<SensorSample>,
         metadata: SessionMetadata,
         analysisFrames: List<AnalysisFrame> = emptyList(),
+        watchRefEvents: List<WatchReferenceEvent> = emptyList(),
+        clockSyncFrames: List<ClockSyncFrame> = emptyList(),
     ) {
         out.bufferedWriter().use { w ->
-            writeMetadata(w, metadata, sampleCount = samples.size, analysisCount = analysisFrames.size)
+            writeMetadata(w, metadata, sampleCount = samples.size, analysisCount = analysisFrames.size,
+                watchRefCount = watchRefEvents.size, clockSyncCount = clockSyncFrames.size)
             w.appendLine(CSV_HEADER.joinToString(","))
             samples.forEach { s ->
                 w.appendLine(
@@ -155,6 +183,56 @@ class CsvExporter {
                     )
                 }
             }
+            // Üçüncü tablo: watch referans olayları (watch6 integration, docs 03).
+            if (watchRefEvents.isNotEmpty()) {
+                w.appendLine()
+                w.appendLine("# watch reference events")
+                w.appendLine(WATCH_REFERENCE_HEADER.joinToString(","))
+                watchRefEvents.forEach { e ->
+                    w.appendLine(
+                        listOf(
+                            e.watchSequence.toString(),
+                            e.sessionId ?: "",
+                            e.watchDataPointTimestamp.toString(),
+                            e.watchCallbackElapsedNanos.toString(),
+                            e.watchSendElapsedNanos.toString(),
+                            e.phoneReceiveElapsedNanos.toString(),
+                            e.estimatedPhoneDatapointNanos.toString(),
+                            e.heartRateBpm.toString(),
+                            e.heartRateStatus.toString(),
+                            e.ibiValuesMs.joinToString(";"),
+                            e.ibiStatuses.joinToString(";"),
+                            e.validIbiValuesMs.joinToString(";"),
+                            e.clockOffsetNanos.toString(),
+                            e.clockRttNanos.toString(),
+                            e.clockUncertaintyNanos.toString(),
+                            e.transportAgeMs.toString(),
+                        ).joinToString(","),
+                    )
+                }
+            }
+            // Dördüncü tablo: clock sync frame'leri (docs 03).
+            if (clockSyncFrames.isNotEmpty()) {
+                w.appendLine()
+                w.appendLine("# clock sync frames")
+                w.appendLine(CLOCK_SYNC_HEADER.joinToString(","))
+                clockSyncFrames.forEach { c ->
+                    w.appendLine(
+                        listOf(
+                            c.sessionId,
+                            c.syncId.toString(),
+                            c.t0PhoneNanos.toString(),
+                            c.t1WatchNanos.toString(),
+                            c.t2WatchNanos.toString(),
+                            c.t3PhoneNanos.toString(),
+                            c.rttNanos.toString(),
+                            c.watchMinusPhoneOffsetNanos.toString(),
+                            c.accepted.toString(),
+                            c.reason ?: "",
+                        ).joinToString(","),
+                    )
+                }
+            }
         }
     }
 
@@ -163,6 +241,8 @@ class CsvExporter {
         m: SessionMetadata,
         sampleCount: Int,
         analysisCount: Int = 0,
+        watchRefCount: Int = 0,
+        clockSyncCount: Int = 0,
     ) {
         w.appendLine("# Lulse sensor session")
         w.appendLine("# device_model=${m.deviceModel}")
@@ -177,6 +257,8 @@ class CsvExporter {
         w.appendLine("# sensors=${m.sensorTypes.joinToString(";")}")
         w.appendLine("# count=$sampleCount")
         w.appendLine("# analysis_frames=$analysisCount")
+        w.appendLine("# watch_reference_events=$watchRefCount")
+        w.appendLine("# clock_sync_frames=$clockSyncCount")
     }
 
     private fun fileName(m: SessionMetadata): String {

@@ -21,3 +21,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "Lulse"
 include(":app")
+include(":wear")
+include(":shared")

@@ -7,6 +7,8 @@ import com.kadirjohn.lulse.data.recording.AnalysisFrame
 import com.kadirjohn.lulse.data.recording.BreathingCondition
 import com.kadirjohn.lulse.data.recording.Placement
 import com.kadirjohn.lulse.data.recording.RecordingManager
+import com.kadirjohn.lulse.data.wear.isReady
+import com.kadirjohn.lulse.data.wear.label
 import com.kadirjohn.lulse.data.sensor.SampleRateEstimator
 import com.kadirjohn.lulse.data.sensor.SensorRepository
 import com.kadirjohn.lulse.data.sensor.SensorRingBuffer
@@ -39,6 +41,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private val measurementStateMachine = MeasurementStateMachine()
     private val signalProcessor = SignalProcessor()
 
+    // Watch6 referansı — opsiyonel. Watch yoksa bağlantı Disconnected kalır,
+    // telefon ölçümü etkilenmez (docs 05 non-negotiable).
+    private val wearRepository = com.kadirjohn.lulse.data.wear.WearConnectionHolder.get(app)
+
     private val ringBuffer = SensorRingBuffer()
     private val sampleRateEstimators: Map<SensorType, SampleRateEstimator> =
         SensorType.entries.associateWith { SampleRateEstimator() }
@@ -51,6 +57,59 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         startPipeline()
+        startWatchObserver()
+    }
+
+    /**
+     * Watch bağlantı + referans durumunu UI'ya yansıtır (watch6 integration).
+     * Watch opsiyoneldir — bağlantı yoksa alanlar null/false kalır.
+     * Ayrıca watch reference/clock-sync olaylarını aktif kayıtta RecordingManager'a besler.
+     */
+    private fun startWatchObserver() {
+        viewModelScope.launch {
+            wearRepository.connectionState.collect { state ->
+                _uiState.update { prev ->
+                    prev.copy(
+                        debug = prev.debug.copy(
+                            watchConnected = state.isReady,
+                            watchState = state.label(),
+                        ),
+                    )
+                }
+            }
+        }
+        viewModelScope.launch {
+            wearRepository.latestReference.collect { ref ->
+                val nowMs = System.currentTimeMillis()
+                _uiState.update { prev ->
+                    prev.copy(
+                        debug = prev.debug.copy(
+                            watchReferenceBpm = ref?.bpm,
+                            watchHrStatus = ref?.hrStatus,
+                            watchLastValidIbiMs = ref?.lastValidIbiMs,
+                            watchReferenceAgeMs = ref?.referenceAgeMs,
+                            watchSequence = ref?.sequence ?: 0,
+                        ),
+                    )
+                }
+                // AnalysisFrame'e watch snapshot ekle — analyze() içinde okunur.
+            }
+        }
+        // Aktif kayıtta watch referans + clock sync olaylarını CSV'ye topla.
+        viewModelScope.launch {
+            wearRepository.referenceEvents.collect { event ->
+                if (recordingManager.isRecording()) {
+                    recordingManager.addWatchRefEvent(event)
+                }
+            }
+        }
+        viewModelScope.launch {
+            wearRepository.clockSyncFrames.collect { frame ->
+                if (recordingManager.isRecording()) {
+                    recordingManager.addClockSyncFrame(frame)
+                }
+            }
+        }
     }
 
     /**
@@ -200,6 +259,10 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun startRecording() {
         recordingManager.start()
+        // Watch referans oturumunu başlat (watch bağlıysa) — clock sync + HR stream.
+        // Watch yoksa zararsız (docs 05: telefon bağımsız çalışır).
+        val sessionId = "lulse_${System.currentTimeMillis()}"
+        wearRepository.startSession(sessionId)
         pushSensorDebug()
     }
 
@@ -208,7 +271,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val avgHz = sampleRateEstimators[SensorType.ACCELEROMETER]?.hz()
             ?: sampleRateEstimators[SensorType.LINEAR_ACCELERATION]?.hz() ?: 0f
         recordingManager.stop(sampleRateHz = avgHz, placement = Placement.CENTER_CHEST, breathing = BreathingCondition.NORMAL)
+        wearRepository.stopSession()
         pushSensorDebug()
+    }
+
+    /** Watch'a bağlanmayı yeniden dene (debug panel butonu). Watch opsiyonel. */
+    fun connectWatch() {
+        wearRepository.connect()
     }
 
     override fun onCleared() {
@@ -216,6 +285,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // Flow toplama viewModelScope kapanınca durur; sensor listener otomatik unregister olur.
         if (recordingManager.isRecording()) {
             recordingManager.stop()
+            wearRepository.stopSession()
         }
+        wearRepository.release()
     }
 }

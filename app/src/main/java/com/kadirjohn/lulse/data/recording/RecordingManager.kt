@@ -3,6 +3,8 @@ package com.kadirjohn.lulse.data.recording
 import android.content.Context
 import com.kadirjohn.lulse.data.sensor.SensorSample
 import com.kadirjohn.lulse.data.sensor.SensorType
+import com.kadirjohn.lulse.shared.ClockSyncFrame
+import com.kadirjohn.lulse.shared.WatchReferenceEvent
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +37,9 @@ class RecordingManager(
     private val activeSamples = mutableListOf<SensorSample>()
     // Aktif seansın biriken analiz tick'leri (debug snapshot'ları).
     private val activeAnalysisFrames = mutableListOf<AnalysisFrame>()
+    // Watch referans olayları + clock sync frame'leri (watch6 integration, docs 03).
+    private val activeWatchRefEvents = mutableListOf<WatchReferenceEvent>()
+    private val activeClockSyncFrames = mutableListOf<ClockSyncFrame>()
     private var sessionStartMs: Long = 0L
 
     /** Kaydı başlat. Önceki birikmiş sample'ları ve analiz frame'leri temizle. */
@@ -42,6 +47,8 @@ class RecordingManager(
         synchronized(this) {
             activeSamples.clear()
             activeAnalysisFrames.clear()
+            activeWatchRefEvents.clear()
+            activeClockSyncFrames.clear()
             sessionStartMs = System.currentTimeMillis()
             _state.value = State(recording = true, sessionId = sessionStartMs)
         }
@@ -68,6 +75,24 @@ class RecordingManager(
         }
     }
 
+    /** Aktif seansa bir watch referans olayı ekle (watch6 integration, docs 03).
+     *  Kayıt kapalıysa yok sayılır. CSV "watch reference events" tablosuna yazılır. */
+    fun addWatchRefEvent(event: WatchReferenceEvent) {
+        if (!_state.value.recording) return
+        synchronized(this) {
+            activeWatchRefEvents.add(event)
+        }
+    }
+
+    /** Aktif seansa bir clock sync frame'i ekle (docs 03).
+     *  Kayıt kapalıysa yok sayılır. CSV "clock sync frames" tablosuna yazılır. */
+    fun addClockSyncFrame(frame: ClockSyncFrame) {
+        if (!_state.value.recording) return
+        synchronized(this) {
+            activeClockSyncFrames.add(frame)
+        }
+    }
+
     /**
      * Kaydı durdur ve CSV'ye yaz.
      * @param sampleRateHz Export'a gömülecek gözlemlenen ortalama Hz.
@@ -82,15 +107,28 @@ class RecordingManager(
     ): java.io.File? {
         val samples: List<SensorSample>
         val frames: List<AnalysisFrame>
+        val watchRefs: List<WatchReferenceEvent>
+        val clockSyncs: List<ClockSyncFrame>
         val start: Long
         synchronized(this) {
             samples = activeSamples.toList()
             frames = activeAnalysisFrames.toList()
+            watchRefs = activeWatchRefEvents.toList()
+            clockSyncs = activeClockSyncFrames.toList()
             start = sessionStartMs
             activeSamples.clear()
             activeAnalysisFrames.clear()
+            activeWatchRefEvents.clear()
+            activeClockSyncFrames.clear()
         }
         val end = System.currentTimeMillis()
+        // Watch referansı varsa SessionMetadata.referenceBpm'i geçerli HR ortalamasıyla doldur
+        // (docs 03: watch referans, telefon SCG'sini değiştirmez, sadece metadata'ya yazılır).
+        val refBpm = watchRefs
+            .filter { it.heartRateStatus == 1 }
+            .map { it.heartRateBpm }
+            .takeIf { it.isNotEmpty() }
+            ?.average()?.toInt()
         val metadata = SessionMetadata(
             sessionStartMs = start,
             sessionEndMs = end,
@@ -98,8 +136,9 @@ class RecordingManager(
             phonePlacement = placement,
             breathingCondition = breathing,
             sensorTypes = SensorType.entries.map { it.name },
+            referenceBpm = refBpm,
         )
-        val result = exporter.exportToDownloads(context, samples, metadata, frames)
+        val result = exporter.exportToDownloads(context, samples, metadata, frames, watchRefs, clockSyncs)
         // Debug panelde gösterilecek yol: public Downloads yolu (varsa) yoksa app kopyası.
         val shownPath = result.publicFile?.let { "Downloads/Lulse/${it.name}" }
             ?: result.appFile?.absolutePath

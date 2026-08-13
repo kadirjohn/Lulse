@@ -44,6 +44,7 @@ fun DebugOverlay(
     onStopRecording: () -> Unit,
     onClose: () -> Unit,
     onMinimize: () -> Unit,
+    onConnectWatch: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!visible) return
@@ -124,6 +125,21 @@ fun DebugOverlay(
             DebugSection("Buffer") {
                 DebugRow("size", state.bufferSize.toString())
                 DebugRow("dropped", state.bufferDropped.toString())
+            }
+            DebugSection("WATCH REFERENCE") {
+                DebugRow("status", state.watchState.ifEmpty { "—" })
+                DebugRow("connected", if (state.watchConnected) "EVET" else "hayır")
+                DebugRow("bpm", state.watchReferenceBpm?.toString() ?: "—")
+                DebugRow("hr status", state.watchHrStatus?.toString() ?: "—")
+                DebugRow("ibi", state.watchLastValidIbiMs?.let { "$it ms" } ?: "—")
+                DebugRow("age", state.watchReferenceAgeMs?.let { "$it ms" } ?: "—")
+                DebugRow("sequence", state.watchSequence.toString())
+                Spacer(Modifier.height(4.dp))
+                Button(
+                    onClick = onConnectWatch,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(),
+                ) { Text("Watch'a bağlan") }
             }
             DebugSection("Kayıt") {
                 DebugRow("recording", if (recording) "EVET" else "hayır")
