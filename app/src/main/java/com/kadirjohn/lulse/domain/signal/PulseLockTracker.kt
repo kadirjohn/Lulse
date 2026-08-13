@@ -32,8 +32,9 @@ class PulseLockTracker(
     private val lockPct: Float = 0.12f,
     /** Harmonik reddi eşiği (oran, 2×/0.5× için). */
     private val harmonicPct: Float = 0.15f,
-    /** Harmonik alternatif güç eşiği (oran, raw'a göre). */
-    private val harmonicAltStrengthPct: Float = 0.7f,
+    /** Harmonik alternatif güç eşiği (oran, raw'a göre) — double raw'dan daha güçlü olmalı.
+     *  1.0: double raw'dan belirgin güçlü değilse raw'ı koru (halving yanlış lock fix). */
+    private val harmonicAltStrengthPct: Float = 1.0f,
     /** ACF gücü lock için min. */
     private val minLockStrength: Float = 0.20f,
     /** ACQUIRING cluster tutarlılık oranı (history'nin). */

@@ -16,6 +16,7 @@ import com.kadirjohn.lulse.data.sensor.SensorType
 import com.kadirjohn.lulse.domain.measurement.MeasurementStateMachine
 import com.kadirjohn.lulse.domain.motion.MotionAnalyzer
 import com.kadirjohn.lulse.domain.motion.MotionState
+import com.kadirjohn.lulse.domain.signal.PulseLockTracker
 import com.kadirjohn.lulse.domain.signal.SignalProcessor
 import com.kadirjohn.lulse.ui.screen.DebugUiState
 import com.kadirjohn.lulse.ui.screen.HomeUiState
@@ -57,6 +58,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // En son motion state — histeresis için analizler arası tutulur.
     private var currentMotionState: MotionState = MotionState.HIGH_MOTION
+    // STILL olduğumuz anın timestamp'i — heartbeat estimator'a sadece STILL sonrası
+    // fresh veri gitsin (HIGH_MOTION/SETTLING verisi karışmasın).
+    private var stillSinceNanos: Long = 0L
 
     init {
         startPipeline()
@@ -143,12 +147,21 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun analyze(nowNanos: Long) {
         val (score, motionState) = motionAnalyzer.analyzeAndClassify(ringBuffer, nowNanos, currentMotionState)
+
+        // STILL'e geçiş anını kaydet — heartbeat estimator'a sadece STILL sonrası
+        // fresh veri gitsin (HIGH_MOTION/SETTLING verisi karışmasın).
+        if (motionState == MotionState.STILL && currentMotionState != MotionState.STILL) {
+            stillSinceNanos = nowNanos
+        }
         currentMotionState = motionState
 
         // Sadece STILL iken pulse ara — hareketli/dikken DSP çalışmaz.
+        // Pencere: STILL başlangıcından son 8 saniye — timestamp bazlı, buffer'ın tamamı değil.
         val pulse: SignalProcessor.SignalResult? =
             if (motionState == MotionState.STILL && !score.phoneUpright) {
-                signalProcessor.process(ringBuffer.snapshot())
+                val fromNanos = maxOf(stillSinceNanos, nowNanos - 8_000_000_000L)
+                val recentSamples = ringBuffer.snapshot().filter { it.timestampNanos >= fromNanos }
+                signalProcessor.process(recentSamples)
             } else null
 
         // Pulse lock tracker — hypotheses'i besle, SEARCHING/ACQUIRING/LOCKED.
@@ -166,12 +179,17 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 measurementState = measurementState,
                 motionScore = score,
                 phoneUpright = score.phoneUpright,
-                // UI BPM'i lock sonucundan — LOCKED'ta gerçek BPM, değilse null ("Nabız aranıyor").
-                bpm = lockedBpm ?: measurementStateMachine.lastPulse?.bpm,
+                // UI BPM'i SADECE lock sonucundan — LOCKED'ta gerçek BPM,
+                // ACQUIRING/SEARCHING'de null ("Nabız aranıyor"). Raw pulse'a düşme.
+                bpm = lockedBpm,
                 confidencePct = measurementStateMachine.lastPulse?.let { (it.confidence * 100).toInt() },
                 signalQuality = qualityFromConfidence(measurementStateMachine.lastPulse?.confidence),
-                lastBeatNanos = measurementStateMachine.lastPulse?.lastBeatNanos,
-                recentBeatNanos = measurementStateMachine.lastPulse?.recentBeatNanos ?: emptyList(),
+                // Flash SADECE LOCKED'ta — ACQUIRING/SEARCHING'de beat gösterme.
+                // lastBeatNanos her pulse'da değişince masada bile flash atıyordu.
+                lastBeatNanos = if (lockResult.state == PulseLockTracker.LockState.LOCKED)
+                    measurementStateMachine.lastPulse?.lastBeatNanos else null,
+                recentBeatNanos = if (lockResult.state == PulseLockTracker.LockState.LOCKED)
+                    (measurementStateMachine.lastPulse?.recentBeatNanos ?: emptyList()) else emptyList(),
                 lockState = lockResult.state.name,
                 debug = prev.debug.copy(
                     motionScore = score.total,
@@ -282,6 +300,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun startRecording() {
+        // --- Buffer contamination fix ---
+        // Ring buffer'da önceki 40 saniyenin eski verisi var.
+        // Yeni recording başlarken buffer'ı temizle ki eski nefes/hareket
+        // harmoniği yeni ölçüme karışmasın (40s recovery → anında temiz başlangıç).
+        ringBuffer.clear()
+        // Pulse lock tracker'ı resetle — eski lock/ACQUIRING state kalmasın.
+        pulseLockTracker.reset()
+        // Measurement state'i resetle.
+        measurementStateMachine.reset()
+        // Motion state'i sıfırla — yeni ölçümde HIGH_MOTION'dan başla (gating).
+        currentMotionState = MotionState.HIGH_MOTION
+        // --- Buffer contamination fix end ---
+
         recordingManager.start()
         // Watch referans oturumunu başlat (watch bağlıysa) — clock sync + HR stream.
         // Watch yoksa zararsız (docs 05: telefon bağımsız çalışır).
@@ -296,6 +327,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             ?: sampleRateEstimators[SensorType.LINEAR_ACCELERATION]?.hz() ?: 0f
         recordingManager.stop(sampleRateHz = avgHz, placement = Placement.CENTER_CHEST, breathing = BreathingCondition.NORMAL)
         wearRepository.stopSession()
+
+        // --- Post-recording cleanup ---
+        // Buffer'ı temizle ki bir sonraki recording eski veriyle başlamasın.
+        ringBuffer.clear()
+        pulseLockTracker.reset()
+        measurementStateMachine.reset()
+        // --- Post-recording cleanup end ---
+
         pushSensorDebug()
     }
 

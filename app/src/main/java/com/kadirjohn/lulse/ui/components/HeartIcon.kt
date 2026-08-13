@@ -20,7 +20,7 @@ import com.kadirjohn.lulse.ui.theme.PulseWarmWhite
 import kotlin.math.absoluteValue
 
 /**
- * Merkez kalp ikonu — duruma göre dolgu/çerçeve ve pulse animasyonu (spec §6.C/D/E).
+ * Merkez kalp ikonu — düzgün, simetrik, belirgin kalp şekli (spec §6.C/D/E).
  *
  * @param mode Görsel mod: arıyorum (outline+glow), bulundu (dolu+sıcak), yok (sönük), düşük güven (amber).
  * @param bpmVar BPM verisi varsa pulse hızı BPM'e senkronize edilir.
@@ -32,7 +32,6 @@ fun HeartIcon(
     modifier: Modifier = Modifier,
 ) {
     val transition = rememberInfiniteTransition(label = "heart")
-    // Pulse hızı: BPM varsa 60/bpm saniye; yoksa sakin 1.4sn.
     val beatMs = if (bpm != null && bpm in 30..220) (60_000f / bpm).toInt() else 1400
     val beatPhase by transition.animateFloat(
         initialValue = 0f,
@@ -54,37 +53,36 @@ fun HeartIcon(
     Canvas(modifier = modifier) {
         val w = size.width
         val h = size.height
-        val cx = w / 2f
-        // Kalp path'i — daha simetrik, belirgin loblar, düzgün tepe (kullanıcı UI isteği).
-        // İki lob eşit yükseklikte, alt sivri ama yumuşak.
+
+        // Düzgün kalp path'i — iki simetrik lob, yumuşak tepe, alt sivri.
+        // Standart kalp bezier eğrisi, normalize edilmiş koordinatlar.
         val heartPath = Path().apply {
-            val top = h * 0.30f       // lob tepesi
-            val bottom = h * 0.80f    // alt sivri
-            val lobeDip = h * 0.45f   // iki lob arası çukur (orta tepe)
-            moveTo(cx, bottom)
-            // Sol lob — alttan yukarı, dışbükey yay.
+            // Alt uç noktadan başla (kalbin alt sivri ucu)
+            moveTo(w * 0.5f, h * 0.88f)
+
+            // Sol taraf — alttan yukarı doğru yay
             cubicTo(
-                x1 = w * 0.04f, y1 = h * 0.55f,
-                x2 = w * 0.10f, y2 = top,
-                x3 = cx - w * 0.04f, y3 = top,
+                w * 0.02f, h * 0.58f,   // kontrol 1: sol alt
+                w * 0.02f, h * 0.18f,   // kontrol 2: sol üst (lob tepesi)
+                w * 0.30f, h * 0.18f,   // sol lob tepesi
             )
-            // Sol lob içi → orta çukur.
+            // Sol lob'tan merkeze (çukur)
             cubicTo(
-                x1 = cx - w * 0.02f, y1 = lobeDip - h * 0.02f,
-                x2 = cx, y2 = lobeDip,
-                x3 = cx, y3 = lobeDip,
+                w * 0.38f, h * 0.18f,   // kontrol 1: lob içi
+                w * 0.44f, h * 0.22f,   // kontrol 2: çukur'a yaklaş
+                w * 0.50f, h * 0.28f,   // orta çukur (en düşük nokta)
             )
-            // Orta çukur → sağ lob içi.
+            // Merkezden sağ lob'a
             cubicTo(
-                x1 = cx, y1 = lobeDip,
-                x2 = cx + w * 0.02f, y2 = lobeDip - h * 0.02f,
-                x3 = cx + w * 0.04f, y3 = top,
+                w * 0.56f, h * 0.22f,   // kontrol 1: çukur'dan çık
+                w * 0.62f, h * 0.18f,   // kontrol 2: sağ lob içi
+                w * 0.70f, h * 0.18f,   // sağ lob tepesi
             )
-            // Sağ lob — tepeden aşağı, dışbükey yay.
+            // Sağ lob'tan alta
             cubicTo(
-                x1 = w * 0.90f, y1 = top,
-                x2 = w * 0.96f, y2 = h * 0.55f,
-                x3 = cx, y3 = bottom,
+                w * 0.98f, h * 0.18f,   // kontrol 1: sağ üst
+                w * 0.98f, h * 0.58f,   // kontrol 2: sağ alt
+                w * 0.50f, h * 0.88f,   // alt uç (kapanış)
             )
             close()
         }
