@@ -44,6 +44,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // Pulse lock tracker — SEARCHING/ACQUIRING/LOCKED state (kullanıcı mimarisi).
     // Cold-start harmonic lock sorununu çözer: naif persistence yerine aşamalı kilit.
     private val pulseLockTracker = com.kadirjohn.lulse.domain.signal.PulseLockTracker()
+    // Beat event gate — accepted-beat dedup, refractory period (diğer AI önerisi).
+    // Aynı fizyolojik beat'in tekrar flash'ını engeller. Sadece LOCKED'ta aktif.
+    private val beatEventGate = com.kadirjohn.lulse.domain.signal.BeatEventGate()
 
     // Watch6 referansı — opsiyonel. Watch yoksa bağlantı Disconnected kalır,
     // telefon ölçümü etkilenmez (docs 05 non-negotiable).
@@ -156,10 +159,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         currentMotionState = motionState
 
         // Sadece STILL iken pulse ara — hareketli/dikken DSP çalışmaz.
-        // Pencere: STILL başlangıcından son 8 saniye — timestamp bazlı, buffer'ın tamamı değil.
+        // Pencere: STILL başlangıcından son N saniye — timestamp bazlı, buffer'ın tamamı değil.
+        // N = SignalProcessor.requiredWindowSeconds (single source-of-truth).
         val pulse: SignalProcessor.SignalResult? =
             if (motionState == MotionState.STILL && !score.phoneUpright) {
-                val fromNanos = maxOf(stillSinceNanos, nowNanos - 8_000_000_000L)
+                val windowNs = (signalProcessor.requiredWindowSeconds * 1_000_000_000L).toLong()
+                val fromNanos = maxOf(stillSinceNanos, nowNanos - windowNs)
                 val recentSamples = ringBuffer.snapshot().filter { it.timestampNanos >= fromNanos }
                 signalProcessor.process(recentSamples)
             } else null
@@ -169,6 +174,11 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         val lockResult = pulseLockTracker.update(pulse?.hypotheses)
         // Lock sonucu UI'da gösterilen BPM — LOCKED'ta locked BPM, ACQUIRING/SEARCHING'de null.
         val lockedBpm: Int? = lockResult.bpm
+
+        // Beat event gate — LOCKED'ta candidate beat'i dedup/refractory'den geçir.
+        // Sadece kabul edilen beat → beatEventId artar → UI tek flash atar.
+        val gateResult = beatEventGate.evaluate(pulse?.lastBeatNanos, lockedBpm)
+        val acceptedBeatNanos: Long? = if (gateResult.accepted) gateResult.acceptedNanos else null
 
         val nowMs = System.currentTimeMillis()
         val (measurementState, _) = measurementStateMachine.update(motionState, pulse, nowMs)
@@ -184,10 +194,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 bpm = lockedBpm,
                 confidencePct = measurementStateMachine.lastPulse?.let { (it.confidence * 100).toInt() },
                 signalQuality = qualityFromConfidence(measurementStateMachine.lastPulse?.confidence),
-                // Flash SADECE LOCKED'ta — ACQUIRING/SEARCHING'de beat gösterme.
-                // lastBeatNanos her pulse'da değişince masada bile flash atıyordu.
-                lastBeatNanos = if (lockResult.state == PulseLockTracker.LockState.LOCKED)
-                    measurementStateMachine.lastPulse?.lastBeatNanos else null,
+                // Flash SADECE LOCKED + accepted beat — BeatEventGate dedup.
+                // acceptedBeatNanos sadece yeni kabul edilen beat'te set, tekrar flash yok.
+                lastBeatNanos = acceptedBeatNanos,
                 recentBeatNanos = if (lockResult.state == PulseLockTracker.LockState.LOCKED)
                     (measurementStateMachine.lastPulse?.recentBeatNanos ?: emptyList()) else emptyList(),
                 lockState = lockResult.state.name,
@@ -307,6 +316,8 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         ringBuffer.clear()
         // Pulse lock tracker'ı resetle — eski lock/ACQUIRING state kalmasın.
         pulseLockTracker.reset()
+        // Beat event gate'i resetle — eski beat event ID kalmasın.
+        beatEventGate.reset()
         // Measurement state'i resetle.
         measurementStateMachine.reset()
         // Motion state'i sıfırla — yeni ölçümde HIGH_MOTION'dan başla (gating).
@@ -332,6 +343,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         // Buffer'ı temizle ki bir sonraki recording eski veriyle başlamasın.
         ringBuffer.clear()
         pulseLockTracker.reset()
+        beatEventGate.reset()
         measurementStateMachine.reset()
         // --- Post-recording cleanup end ---
 

@@ -48,9 +48,10 @@ import kotlin.math.sqrt
  * ölçer; heartbeat kaynağı olarak LINEAR_ACCELERATION kullanılmaz.
  */
 class SignalProcessor(
-    /** Analiz penceresi uzunluğu (saniye) — 8s: daha stabil ACF, ilk-pencere spike'ı azalır.
-     *  Doğrulama verisi (sadecebuiyi): 6s pencerede ilk 6 sn 101–151 spike; 8s daha oturaklı. */
-    private val windowSeconds: Float = 8f,
+    /** Analiz penceresi uzunluğu (saniye) — MainViewModel'de timestamp bazlı slicing
+     *  için kullanılır (nowNanos - requiredWindowSeconds*1e9). Single source-of-truth:
+     *  bu değeri değiştirirsen MainViewModel.analyze()'teki 8_000_000_000L da değişmeli. */
+    val requiredWindowSeconds: Float = 8f,
     /** Beklenen sample rate (Hz). ±%30 sapma tolere edilir. */
     private val expectedSampleRateHz: Float = 199f,
     // Band-pass.
@@ -208,8 +209,10 @@ class SignalProcessor(
         val (bpm, conf, verdict, usedLagSamples) = disamb ?: return null
         if (bpm < minBpm || bpm > maxBpm) return null
 
-        // Hypothesis ailesi üret — PulseLockTracker için (kullanıcı mimarisi).
-        val hypotheses = buildHypotheses(cands, spec, fs, conf)
+        // Hypothesis ailesi üret — PulseLockTracker için.
+        // ÖNEMLİ: rawBpm, harmonicDisambiguate'in seçtiği BPM olmalı (usedLag),
+        // en güçlü raw ACF peak DEĞİL — yoksa tracker ile final BPM farklı olur.
+        val hypotheses = buildHypotheses(cands, spec, fs, conf, bpm, usedLagSamples)
 
         // Beat lokalizasyonu: envelope peak'leri, ACF periyodu (usedLag) ile doğrula.
         // Peak'ler usedLag aralığında olmalı; doubling peak'lerini eler.
@@ -225,42 +228,53 @@ class SignalProcessor(
     }
 
     /**
-     * Hypothesis ailesi üret: raw (en güçlü ACF candidate), half (raw/2),
+     * Hypothesis ailesi üret: raw (harmonicDisambiguate'in SEÇTİĞİ BPM), half (raw/2),
      * double (raw×2) + her biri için ACF gücü. PulseLockTracker bunu kullanarak
      * SEARCHING→ACQUIRING→LOCKED kararını verir (docs planı Adım 1-2).
+     *
+     * ÖNEMLİ: [selectedBpm] harmonicDisambiguate'in sonucudur — en güçlü raw ACF peak
+     * DEĞİL. Bu, SignalProcessor final BPM ile PulseLockTracker hypothesis'inin aynı
+     * şeyi temsil etmesini sağlar (mimari tutarlılık fix).
      */
     private fun buildHypotheses(
         cands: List<AcCandidate>,
         spec: AcfSpec,
         fs: Float,
         conf: Float,
+        selectedBpm: Float,
+        selectedLag: Float,
     ): PulseLockTracker.Hypotheses {
-        val best = cands.first()
-        val rawBpm = 60f * fs / best.lag
+        val rawBpm = selectedBpm  // disambiguate edilmiş BPM, raw peak değil
         val halfBpm = (rawBpm / 2f).takeIf { it >= minBpm }
         val doubleBpm = (rawBpm * 2f).takeIf { it <= maxBpm }
+        // Seçilen lag için ACF gücü.
+        val rawStrength = strengthForLag(spec, selectedLag)
         // Half/double için ACF gücü: karşılık gelen lag'da ACF değeri.
         fun strengthForBpm(bpm: Float?): Float {
             if (bpm == null) return 0f
             val targetLag = fs * 60f / bpm
-            // spec.lags aralığında en yakın lag'ı bul.
-            var best = 0f
-            for (i in spec.lags.indices) {
-                if (abs(spec.lags[i] - targetLag) < 2f) {
-                    if (spec.ac[i] > best) best = spec.ac[i]
-                }
-            }
-            return best
+            return strengthForLag(spec, targetLag)
         }
         return PulseLockTracker.Hypotheses(
             rawBpm = rawBpm,
             halfBpm = halfBpm,
             doubleBpm = doubleBpm,
-            rawStrength = best.strength,
+            rawStrength = rawStrength,
             halfStrength = strengthForBpm(halfBpm),
             doubleStrength = strengthForBpm(doubleBpm),
             confidence = conf,
         )
+    }
+
+    /** Belirli bir lag için ACF gücü (spec içinde en yakın lag). */
+    private fun strengthForLag(spec: AcfSpec, lag: Float): Float {
+        var best = 0f
+        for (i in spec.lags.indices) {
+            if (abs(spec.lags[i] - lag) < 2f) {
+                if (spec.ac[i] > best) best = spec.ac[i]
+            }
+        }
+        return best
     }
 
     // --- ACF birincil hesaplamalar ---
