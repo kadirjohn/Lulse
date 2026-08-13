@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,6 +26,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.kadirjohn.lulse.ui.screen.DebugUiState
 
 /**
@@ -40,6 +43,7 @@ fun DebugOverlay(
     onStartRecording: () -> Unit,
     onStopRecording: () -> Unit,
     onClose: () -> Unit,
+    onMinimize: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (!visible) return
@@ -66,11 +70,30 @@ fun DebugOverlay(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
-                Button(
+                // Minimize butonu — paneli balona indir.
+                IconButton(
+                    onClick = onMinimize,
+                    modifier = Modifier.size(40.dp),
+                ) {
+                    Text(
+                        "–",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 26.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                // Kapat butonu (büyütülmüş çarpı).
+                IconButton(
                     onClick = onClose,
-                    colors = ButtonDefaults.textButtonColors(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(8.dp),
-                ) { Text("×", color = MaterialTheme.colorScheme.onSurface) }
+                    modifier = Modifier.size(44.dp),
+                ) {
+                    Text(
+                        "×",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 32.sp,
+                        fontWeight = FontWeight.Light,
+                    )
+                }
             }
             Spacer(Modifier.height(2.dp))
 

@@ -29,6 +29,13 @@ data class HomeUiState(
     // Debug overlay.
     val debugVisible: Boolean = false,
     val debug: DebugUiState = DebugUiState(),
+    // Debug panel minimize edildiğinde sürüklenebilir balon modu.
+    // debugVisible=true → panel tam açık; debugMinimized=true → balon göster.
+    // İkisi de false → hiçbir debug UI yok (tamamen kapalı).
+    val debugMinimized: Boolean = false,
+    /** Balon'un ekran konumu (px offset, sağ-üst köşeden). Sürükleme sırasında güncellenir. */
+    val bubbleOffsetX: Float = 0f,
+    val bubbleOffsetY: Float = 0f,
 )
 
 enum class SignalQuality { UNKNOWN, HIGH, MEDIUM, LOW }

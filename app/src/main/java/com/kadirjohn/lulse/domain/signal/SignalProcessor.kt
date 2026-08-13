@@ -60,10 +60,10 @@ class SignalProcessor(
     private val maxBpm: Int = 180,
     /** Harmonik hipotez eşiği — bu BPM üstündeki candidate'lerin yarısı test edilir. */
     private val harmonicTestThreshold: Float = 110f,
-    /** ACF candidate için min güç (normalize 0–1). */
-    private val minAcCandidateStrength: Float = 0.10f,
-    /** Harmonik fundamental için min ACF gücü. */
-    private val minFundamentalStrength: Float = 0.20f,
+    /** ACF candidate için min güç (normalize 0–1). 0.15 — borderline peak'leri eler. */
+    private val minAcCandidateStrength: Float = 0.15f,
+    /** Harmonik fundamental için min ACF gücü. 0.30 — zayıf fundamental'ı harmonik sanma. */
+    private val minFundamentalStrength: Float = 0.30f,
     /** Min sample = fs * bu çarpan, en az 60. */
     private val minSamplesMultiplier: Int = 3,
     /** Beat lokalizasyonu için min peak interval (saniye). */
@@ -103,13 +103,15 @@ class SignalProcessor(
         val secondary = if (gyroX.size >= 2) estimate(gyroX, gyroX.map { it.x }) else null
 
         // İki kanal varsa uyuşma ile confidence boost / çelişki kontrolü.
+        // v2: confidence ACF gücüne map'lenir (birincil), iki-kanal cezası azaltıldı —
+        // v1'de ACF 0.89 iken confidence 0.32 çıkıyordu (aşırı cezalandırma).
         val consensus: Triple<Float, Float, String> = if (secondary != null) {
             val dPrimary = primary.bpm.toFloat()
             val dSecondary = secondary.bpm.toFloat()
             val agree = abs(dPrimary - dSecondary) / max(dPrimary, dSecondary) < 0.12f
             when {
                 agree -> {
-                    // İki bağımsız kanal uyuşuyor — en sağlam.
+                    // İki bağımsız kanal uyuşuyor — en sağlam. Confidence boost.
                     Triple((dPrimary + dSecondary) / 2f, min(primary.conf * 1.1f, 0.95f),
                         "${primary.verdict}+gyro-agree")
                 }
@@ -122,8 +124,9 @@ class SignalProcessor(
                     Triple(dPrimary, primary.conf, "${secondary.verdict}->acc-fund")
                 }
                 else -> {
-                    // Çelişki, uyuşma yok — birincile güven ama güveni düşür.
-                    Triple(dPrimary, primary.conf * 0.7f, "${primary.verdict}+gyro-disagree")
+                    // Çelişki — ama v2: güveni çok düşürme (0.7×→0.85×).
+                    // Birincil (ACC) ACF gücü hâlâ ana sinyal; gyro sadece doğrulama.
+                    Triple(dPrimary, primary.conf * 0.85f, "${primary.verdict}+gyro-disagree")
                 }
             }
         } else {
@@ -326,9 +329,12 @@ class SignalProcessor(
 
     /**
      * Harmonik hipotez testi — candidate'lerden fundamental BPM üret.
-     * High candidate (>110 bpm) varsa, yarısı physiological aralıkta ve güçlü
-     * bir candidate'le eşleşirse → fundamental'ı seç (doubling çözümü).
-     * Yoksa en güçlü candidate.
+     *
+     * **Sıkılaştırılmış (v2):** high candidate (>110 bpm) SADECE zayıfsa böl.
+     * High güçlü ve fundamental da güçlüyse YÜKSEK olanı seç — çünkü SCG'de
+     * tek kalp atışı S1/S2 gibi birden fazla güçlü mekanik event üretir; 2×
+     * peak gerçektir, her zaman harmonik hat değildir. Eski (v1) kural yarı güçlü
+     * her candidate'i harmonik sanıp aşırı bölüyordu (93→46→51 cascade).
      *
      * [fs] sample rate — lag sample cinsinden, BPM = 60*fs/lag.
      *
@@ -340,6 +346,7 @@ class SignalProcessor(
         val bestLag = best.lag
         if (bestLag <= 0f) return null
         val bestBpm = 60f * fs / bestLag
+        val bestStr = best.strength
 
         // Tüm candidate BPM'ler (lag sample → bpm = 60*fs/lag).
         val allBpms = cands.map { c ->
@@ -351,23 +358,27 @@ class SignalProcessor(
             if (b > harmonicTestThreshold) {
                 val half = b / 2f
                 if (half in minBpm.toFloat()..harmonicTestThreshold) {
-                    // half'a yakın güçlü candidate ara.
-                    val fundCand = allBpms.firstOrNull { (b2, s2, _) ->
-                        abs(b2 - half) / half < 0.10f && s2 > minFundamentalStrength
+                    // half'a yakın candidate ara (güç eşiği yok — var mı diye bak).
+                    val fundCand = allBpms.firstOrNull { (b2, _, _) ->
+                        abs(b2 - half) / half < 0.10f
                     }
                     if (fundCand != null) {
                         val (_, fundStr, fundLag) = fundCand
-                        // Fundamental'ın template'i high'ı açıklıyor (high = 2×fund).
-                        // Güven: fundamental ACF gücü + high teyidi.
-                        val conf = min(0.95f, fundStr + 0.05f)
-                        return DisambResult(half, conf, "harmonic->fundamental", fundLag)
+                        // v2: high SADECE zayıfsa böl.
+                        // high'ın gücü en güçlü candidate'den belirgin düşükse (0.55×)
+                        // VE fundamental yeterince güçlüyse → high muhtemelen harmonik.
+                        // High güçlüyse → 2× mekanik event gerçek beat, olduğu gibi bırak.
+                        if (s < bestStr * 0.55f && fundStr > minFundamentalStrength) {
+                            val conf = min(0.95f, fundStr + 0.05f)
+                            return DisambResult(half, conf, "harmonic->fundamental", fundLag)
+                        }
                     }
                 }
             }
         }
 
         // Harmonik yok — en güçlü candidate (primary ACF).
-        val conf = min(0.9f, best.strength)
+        val conf = min(0.9f, bestStr)
         return DisambResult(bestBpm, conf, "primary-acf", bestLag)
     }
 

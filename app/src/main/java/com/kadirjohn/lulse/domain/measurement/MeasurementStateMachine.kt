@@ -22,8 +22,9 @@ import com.kadirjohn.lulse.domain.signal.SignalProcessor
 class MeasurementStateMachine(
     /** STILL olduktan sonra NO_PULSE'a düşmeden önce beklenecek süre. */
     private val searchTimeoutMs: Long = 12_000L,
-    /** PULSE_DETECTED için min confidence eşiği. */
-    private val highConfidenceThreshold: Float = 0.75f,
+    /** PULSE_DETECTED için min confidence eşiği. 0.55 — doğru BPM (conf 0.6) gösterildiğinde
+     * "tespit edildi" densin. 0.75 çok yüksekti: 292-tick kayıtta 1 tane PULSE_DETECTED. */
+    private val highConfidenceThreshold: Float = 0.55f,
 ) {
 
     var state: MeasurementState = MeasurementState.IDLE

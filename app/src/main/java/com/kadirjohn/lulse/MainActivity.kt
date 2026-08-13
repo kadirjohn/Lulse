@@ -35,6 +35,9 @@ class MainActivity : ComponentActivity() {
                     onStartRecording = viewModel::startRecording,
                     onStopRecording = viewModel::stopRecording,
                     onCloseDebug = viewModel::closeDebug,
+                    onMinimizeDebug = viewModel::minimizeDebug,
+                    onRestoreDebug = viewModel::restoreDebug,
+                    onUpdateBubbleOffset = viewModel::updateBubbleOffset,
                     onDismissIntro = viewModel::dismissIntro,
                 )
             }

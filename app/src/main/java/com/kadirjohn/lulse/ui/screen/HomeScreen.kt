@@ -33,6 +33,7 @@ import com.kadirjohn.lulse.ui.animation.animateHeat
 import com.kadirjohn.lulse.ui.components.Accent
 import com.kadirjohn.lulse.ui.components.AnimatedGradientBackground
 import com.kadirjohn.lulse.ui.components.DebugOverlay
+import com.kadirjohn.lulse.ui.components.DebugBubble
 import com.kadirjohn.lulse.ui.components.HeartIcon
 import com.kadirjohn.lulse.ui.components.HeartMode
 import com.kadirjohn.lulse.ui.components.PulsingGlow
@@ -52,6 +53,9 @@ fun HomeScreen(
     onStartRecording: () -> Unit,
     onStopRecording: () -> Unit,
     onCloseDebug: () -> Unit,
+    onMinimizeDebug: () -> Unit,
+    onRestoreDebug: () -> Unit,
+    onUpdateBubbleOffset: (Float, Float) -> Unit,
     onDismissIntro: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -99,7 +103,7 @@ fun HomeScreen(
             IntroOverlay(state)
         }
 
-        // Debug overlay en üstte.
+        // Debug overlay en üstte (tam panel).
         DebugOverlay(
             state = state.debug,
             visible = state.debugVisible,
@@ -107,6 +111,16 @@ fun HomeScreen(
             onStartRecording = onStartRecording,
             onStopRecording = onStopRecording,
             onClose = onCloseDebug,
+            onMinimize = onMinimizeDebug,
+        )
+
+        // Minimize edilmiş debug balonu (sürüklenebilir, tıkla → panel aç).
+        DebugBubble(
+            visible = state.debugMinimized,
+            offsetX = state.bubbleOffsetX,
+            offsetY = state.bubbleOffsetY,
+            onTap = onRestoreDebug,
+            onDragEnd = { x, y -> onUpdateBubbleOffset(x, y) },
         )
     }
 }

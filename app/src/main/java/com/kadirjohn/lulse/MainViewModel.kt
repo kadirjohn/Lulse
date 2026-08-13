@@ -169,12 +169,29 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- Debug / recording aksiyonları ---
 
+    /** Long-press ile debug panelini aç. Zaten açıksa kapat. */
     fun toggleDebug() {
-        _uiState.update { it.copy(debugVisible = !it.debugVisible) }
+        _uiState.update { it.copy(debugVisible = !it.debugVisible, debugMinimized = false) }
     }
 
+    /** Debug panelini tamamen kapat (çarpı butonu). */
     fun closeDebug() {
-        _uiState.update { it.copy(debugVisible = false) }
+        _uiState.update { it.copy(debugVisible = false, debugMinimized = false) }
+    }
+
+    /** Debug panelini minimize et → sürüklenebilir balon moduna geç. */
+    fun minimizeDebug() {
+        _uiState.update { it.copy(debugVisible = false, debugMinimized = true) }
+    }
+
+    /** Balona tıkla → debug panelini tekrar tam aç. */
+    fun restoreDebug() {
+        _uiState.update { it.copy(debugVisible = true, debugMinimized = false) }
+    }
+
+    /** Balon sürükleme — ekran konumunu güncelle (px offset). */
+    fun updateBubbleOffset(x: Float, y: Float) {
+        _uiState.update { it.copy(bubbleOffsetX = x, bubbleOffsetY = y) }
     }
 
     fun dismissIntro() {
