@@ -40,6 +40,13 @@ android {
     buildFeatures {
         compose = true
     }
+
+    // WearableListenerService intent-filter (BIND_LISTENER) deprecated uyarısı —
+    // Wear OS hâlâ service'i keşfetmek için bu intent-filter'ı kullanıyor.
+    lint {
+        abortOnError = false
+        disable += "WearableBindListener"
+    }
 }
 
 dependencies {

@@ -2,6 +2,7 @@ package com.kadirjohn.lulse.wear.data.transport
 
 import android.content.Context
 import android.os.SystemClock
+import android.util.Log
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.MessageClient
 import com.google.android.gms.wearable.Node
@@ -64,12 +65,19 @@ class WearTransportRepository(
         }
     }
 
-    /** Capability advertise et — telefon keşfi için. Wear OS otomatik handler. */
+    /** Capability advertise et — telefon keşfi için. Wear OS otomatik handler.
+     *  Idempotent: zaten ekliyse (DUPLICATE_CAPABILITY) hata verme, sessizce atla. */
     fun advertiseCapability() {
-        // CapabilityClient.addLocalCapability Wear'da capability ekler.
-        // (Bazı Wear OS sürümlerinde capability advertise wearapp'da manifest/provider
-        //  üzerinden de yapılır; runtime API yeterli docs 01 için.)
         capabilityClient.addLocalCapability(Protocol.CAPABILITY)
+            .addOnSuccessListener { Log.i("LULSE_WEAR", "capability advertised: ${Protocol.CAPABILITY}") }
+            .addOnFailureListener { e ->
+                // DUPLICATE_CAPABILITY (4006) zaten ekli demek — zararsız, atla.
+                if (e is com.google.android.gms.common.api.ApiException && e.statusCode == 4006) {
+                    Log.i("LULSE_WEAR", "capability already advertised")
+                } else {
+                    Log.e("LULSE_WEAR", "capability advertise failed", e)
+                }
+            }
     }
 
     /**
@@ -77,14 +85,17 @@ class WearTransportRepository(
      * Path'e göre dispatch.
      */
     fun handleMessage(path: String, data: ByteArray, nodeId: String) {
+        Log.i("LULSE_WEAR", "message received: $path from $nodeId")
         when (path) {
             Protocol.PATH_HELLO -> sendHelloAck(nodeId)
             Protocol.PATH_SESSION_START -> {
                 val cmd = json.decodeFromString<SessionCommand>(String(data))
+                Log.i("LULSE_WEAR", "SESSION_START sessionId=${cmd.sessionId}")
                 _currentSession.value = cmd.sessionId
                 healthSource.startTracking(cmd.sessionId)
             }
             Protocol.PATH_SESSION_STOP -> {
+                Log.i("LULSE_WEAR", "SESSION_STOP")
                 _currentSession.value = null
                 healthSource.stopTracking()
             }
@@ -160,6 +171,18 @@ class WearTransportRepository(
 
     fun release() {
         healthSource.release()
+    }
+
+    /**
+     * Watch tek başına açıldığında (telefon SESSION_START göndermeden) HR üretmeye
+     * başla — UI'da BPM görünsün, transport test edilebilsin. Telefon bağlanınca
+     * SESSION_START ile sessionId'li yeniden başlatılır. Stub AAR'siz 72 BPM üretir.
+     */
+    fun startHealthTrackingForPreview() {
+        if (healthSource.state.value == WatchTrackingState.UNINITIALIZED ||
+            healthSource.state.value == WatchTrackingState.SERVICE_READY) {
+            healthSource.startTracking(sessionId = null)
+        }
     }
 
     // --- UI accessor'ları (MainActivity için) ---

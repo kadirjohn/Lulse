@@ -27,11 +27,12 @@
             </intent-filter>
         </activity>
 
-        <!-- Wear OS Data Layer listener — telefondan mesajları alır (HELLO, SESSION, PING). -->
+        <!-- Wear OS Data Layer listener — telefondan mesajları alır (HELLO, SESSION, PING).
+             WearableListenerService manifest-declared; intent-filter artık gerekmiyor
+             (BIND_LISTENER deprecated). Sistem service'i annotation ile bulur. -->
         <service
             android:name=".data.transport.WearMessageListenerService"
-            android:exported="true"
-            android:permission="com.google.android.gms.permission.BIND_LISTENER">
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
             </intent-filter>

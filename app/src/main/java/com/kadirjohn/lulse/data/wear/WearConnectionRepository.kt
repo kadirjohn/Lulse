@@ -2,6 +2,7 @@ package com.kadirjohn.lulse.data.wear
 
 import android.content.Context
 import android.os.SystemClock
+import android.util.Log
 import com.google.android.gms.wearable.CapabilityClient
 import com.google.android.gms.wearable.CapabilityInfo
 import com.google.android.gms.wearable.MessageClient
@@ -85,19 +86,25 @@ class WearConnectionRepository(
     init {
         // Capability değişikliklerini dinle — watch bağlan/kopar (docs 01).
         capabilityClient.addListener(capabilityListener, Protocol.CAPABILITY)
+        // Başlangıçta capability'yi hemen sorgula — listener sadece değişimde
+        // tetiklenir, app açılışta mevcut durumu almak için主动 keşfet.
+        connect()
     }
 
     private fun onCapabilityChangedInternal(info: CapabilityInfo) {
         val node = info.nodes.firstOrNull()
+        Log.i("LULSE_WEAR", "capability changed: ${info.name} nodes=${info.nodes.size}")
         if (node == null) {
             _connectionState.value = WatchConnectionState.Disconnected
             return
         }
         if (!node.isNearby) {
+            Log.i("LULSE_WEAR", "node not nearby: ${node.id}")
             _connectionState.value = WatchConnectionState.Disconnected
             return
         }
         // Capability reachable → HELLO gönder.
+        Log.i("LULSE_WEAR", "node nearby, sending HELLO to ${node.id}")
         sendHello(node.id)
     }
 
@@ -105,8 +112,9 @@ class WearConnectionRepository(
     private fun sendHello(nodeId: String) {
         _connectionState.value = WatchConnectionState.ConnectedAppNotDetected
         messageClient.sendMessage(nodeId, Protocol.PATH_HELLO, ByteArray(0))
-            .addOnSuccessListener { /* ack bekle */ }
-            .addOnFailureListener {
+            .addOnSuccessListener { Log.i("LULSE_WEAR", "HELLO sent to $nodeId") }
+            .addOnFailureListener { e ->
+                Log.e("LULSE_WEAR", "HELLO failed", e)
                 _connectionState.value = WatchConnectionState.Error("HELLO failed")
             }
     }
@@ -125,13 +133,14 @@ class WearConnectionRepository(
     private fun handleHelloAck(data: ByteArray, sourceNodeId: String) {
         try {
             val ack = json.decodeFromString(HelloAck.serializer(), String(data))
+            Log.i("LULSE_WEAR", "HELLO_ACK: protocol=${ack.protocolVersion} model=${ack.watchModel} tracking=${ack.trackingState}")
             // Protocol uyumu (docs 03, 04).
             if (ack.protocolVersion != EXPECTED_PROTOCOL_VERSION) {
+                Log.w("LULSE_WEAR", "protocol mismatch: phone=$EXPECTED_PROTOCOL_VERSION watch=${ack.protocolVersion}")
                 _connectionState.value = WatchConnectionState.Incompatible(sourceNodeId, ack.protocolVersion)
                 return
             }
-            // Node adını al (HELLO_ACK'te yok, capability'den gelen basit).
-            val nodeName = sourceNodeId // debug için yeterli; Phase E'de NodeClient'tan isim
+            val nodeName = sourceNodeId
             _connectionState.value = WatchConnectionState.Ready(
                 nodeId = sourceNodeId,
                 nodeName = nodeName,

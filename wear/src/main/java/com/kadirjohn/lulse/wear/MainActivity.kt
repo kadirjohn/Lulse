@@ -47,6 +47,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Transport'ı başlat (capability advertise + health source).
         TransportHolder.get(this)
+        // Watch tek başına açıldığında da HR göster — stub'ı hemen başlat
+        // (telefon SESSION_START göndermese de UI'da BPM görünsün; telefon bağlanınca
+        // sessionId ile yeniden başlatılır). Stub AAR'siz 72 BPM üretir.
+        TransportHolder.get(this).startHealthTrackingForPreview()
         setContent { WearApp() }
     }
 }

@@ -33,11 +33,11 @@
             </intent-filter>
         </activity>
 
-        <!-- Wear OS Data Layer listener — watch'tan gelen mesajları alır (watch6 integration). -->
+        <!-- Wear OS Data Layer listener — watch'tan gelen mesajları alır (watch6 integration).
+             WearableListenerService manifest-declared; BIND_LISTENER deprecated, intent-filter gerekmez. -->
         <service
             android:name=".data.wear.WearMessageListenerService"
-            android:exported="true"
-            android:permission="com.google.android.gms.permission.BIND_LISTENER">
+            android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.BIND_LISTENER" />
             </intent-filter>
