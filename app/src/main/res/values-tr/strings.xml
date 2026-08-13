@@ -1,0 +1,43 @@
+<resources>
+    <string name="app_name">Lulse</string>
+
+    <!-- Yüksek hareket (State A) — tek büyük cümle + alt yönerge -->
+    <string name="motion_high_title">Yatar pozisyona geçin ve telefonu kalbinizin üzerine koyun</string>
+    <string name="motion_high_subtitle">Hareket azalınca ölçüm başlayacak</string>
+    <string name="motion_high_hint">Hareket azalınca ölçüm başlayacak</string>
+    <!-- Telefon dik tutuluyor (orientation gating) — alt yönerge, daha belirgin -->
+    <string name="motion_upright_hint">Telefonu dik tutuyorsunuz — göğsünüze yatay yerleştirin</string>
+
+    <!-- Sakinleşme (State B) -->
+    <string name="motion_settling_title">Sabit kalın</string>
+    <string name="motion_settling_subtitle">Ölçüm için hazırlanıyor</string>
+
+    <!-- Hazır / aranıyor (State C) -->
+    <string name="ready_title">Nabız aranıyor</string>
+    <string name="ready_subtitle">Telefonu sabit tutun</string>
+
+    <!-- Nabız bulundu (State D) — UI sade, debug-ağırı etiketler kaldırıldı -->
+    <string name="bpm_unit">BPM</string>
+
+    <!-- Nabız algılanmadı (State E) -->
+    <string name="no_pulse_title">Nabız algılanmadı</string>
+    <string name="no_pulse_hint_reposition">Telefonu biraz daha sola kaydırmayı deneyin</string>
+    <string name="no_pulse_hint_still">Birkaç saniye daha sabit kalın</string>
+
+    <!-- İlk açılış onboarding katmanı — disclaimer kaldırıldı -->
+    <string name="intro_title">Yatın ve telefonu kalbinizin üzerine koyun</string>
+    <string name="intro_hint">En iyi sonuç için birkaç saniye sabit kalın</string>
+
+    <!-- Debug panel -->
+    <string name="debug_title">Debug</string>
+    <string name="debug_motion_score">Motion score</string>
+    <string name="debug_motion_state">Motion state</string>
+    <string name="debug_measurement_state">Measurement state</string>
+    <string name="debug_sample_rate">Sample rate</string>
+    <string name="debug_recording">Recording</string>
+    <string name="debug_start_recording">Kaydı başlat</string>
+    <string name="debug_stop_recording">Kaydı durdur</string>
+    <string name="debug_export_path">Son çıktı</string>
+    <string name="debug_show">Debug göster</string>
+    <string name="debug_hide">Debug gizle</string>
+</resources>

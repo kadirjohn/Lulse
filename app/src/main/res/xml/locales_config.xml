@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Locale configuration — Android 13+ (API 33+) per-app language preference.
+  Settings → System → Languages → App language → Lulse seçtiğinde bu liste görünür.
+  Sistem dili Türkçe ise app Türkçe, aksi halde default (İngilizce) açılır.
+  Manuel dil seçeneği UI'da yok — sistem/telefon diline göre otomatik.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+    <locale android:name="tr" />
+</locale-config>

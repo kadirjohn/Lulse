@@ -1,32 +1,32 @@
 <resources>
     <string name="app_name">Lulse</string>
 
-    <!-- Yüksek hareket (State A) — tek büyük cümle + alt yönerge -->
-    <string name="motion_high_title">Yatar pozisyona geçin ve telefonu kalbinizin üzerine koyun</string>
-    <string name="motion_high_subtitle">Hareket azalınca ölçüm başlayacak</string>
-    <string name="motion_high_hint">Hareket azalınca ölçüm başlayacak</string>
-    <!-- Telefon dik tutuluyor (orientation gating) — alt yönerge, daha belirgin -->
-    <string name="motion_upright_hint">Telefonu dik tutuyorsunuz — göğsünüze yatay yerleştirin</string>
+    <!-- High motion (State A) — single headline + sub-guidance -->
+    <string name="motion_high_title">Lie down and place the phone over your heart</string>
+    <string name="motion_high_subtitle">Measurement starts once you settle</string>
+    <string name="motion_high_hint">Measurement starts once you settle</string>
+    <!-- Phone held upright (orientation gating) — sub-guidance, more prominent -->
+    <string name="motion_upright_hint">You\'re holding the phone upright — lay it flat on your chest</string>
 
-    <!-- Sakinleşme (State B) -->
-    <string name="motion_settling_title">Sabit kalın</string>
-    <string name="motion_settling_subtitle">Ölçüm için hazırlanıyor</string>
+    <!-- Settling (State B) -->
+    <string name="motion_settling_title">Stay still</string>
+    <string name="motion_settling_subtitle">Getting ready to measure</string>
 
-    <!-- Hazır / aranıyor (State C) -->
-    <string name="ready_title">Nabız aranıyor</string>
-    <string name="ready_subtitle">Telefonu sabit tutun</string>
+    <!-- Ready / searching (State C) -->
+    <string name="ready_title">Searching for pulse</string>
+    <string name="ready_subtitle">Hold the phone steady</string>
 
-    <!-- Nabız bulundu (State D) — UI sade, debug-ağırı etiketler kaldırıldı -->
+    <!-- Pulse found (State D) -->
     <string name="bpm_unit">BPM</string>
 
-    <!-- Nabız algılanmadı (State E) -->
-    <string name="no_pulse_title">Nabız algılanmadı</string>
-    <string name="no_pulse_hint_reposition">Telefonu biraz daha sola kaydırmayı deneyin</string>
-    <string name="no_pulse_hint_still">Birkaç saniye daha sabit kalın</string>
+    <!-- No pulse detected (State E) -->
+    <string name="no_pulse_title">No pulse detected</string>
+    <string name="no_pulse_hint_reposition">Try shifting the phone a little to the left</string>
+    <string name="no_pulse_hint_still">Stay still for a few more seconds</string>
 
-    <!-- İlk açılış onboarding katmanı — disclaimer kaldırıldı -->
-    <string name="intro_title">Yatın ve telefonu kalbinizin üzerine koyun</string>
-    <string name="intro_hint">En iyi sonuç için birkaç saniye sabit kalın</string>
+    <!-- First-launch onboarding overlay -->
+    <string name="intro_title">Lie down and place the phone over your heart</string>
+    <string name="intro_hint">Stay still for a few seconds for the best result</string>
 
     <!-- Debug panel -->
     <string name="debug_title">Debug</string>
@@ -35,9 +35,9 @@
     <string name="debug_measurement_state">Measurement state</string>
     <string name="debug_sample_rate">Sample rate</string>
     <string name="debug_recording">Recording</string>
-    <string name="debug_start_recording">Kaydı başlat</string>
-    <string name="debug_stop_recording">Kaydı durdur</string>
-    <string name="debug_export_path">Son çıktı</string>
-    <string name="debug_show">Debug göster</string>
-    <string name="debug_hide">Debug gizle</string>
+    <string name="debug_start_recording">Start recording</string>
+    <string name="debug_stop_recording">Stop recording</string>
+    <string name="debug_export_path">Last output</string>
+    <string name="debug_show">Show debug</string>
+    <string name="debug_hide">Hide debug</string>
 </resources>
