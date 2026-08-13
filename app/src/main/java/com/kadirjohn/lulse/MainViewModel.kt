@@ -194,12 +194,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 bpm = lockedBpm,
                 confidencePct = measurementStateMachine.lastPulse?.let { (it.confidence * 100).toInt() },
                 signalQuality = qualityFromConfidence(measurementStateMachine.lastPulse?.confidence),
-                // Flash SADECE LOCKED + accepted beat — BeatEventGate dedup.
-                // acceptedBeatNanos sadece yeni kabul edilen beat'te set, tekrar flash yok.
+                // Flash SADECE LOCKED + accepted beat — BeatEventGate dedup via beatEventId.
+                // UI LaunchedEffect(beatEventId) ile her accepted beat'te tek flash atar.
+                // acceptedBeatNanos sadece yeni kabul edilen beat'te non-null, tekrar flash yok.
                 lastBeatNanos = acceptedBeatNanos,
                 recentBeatNanos = if (lockResult.state == PulseLockTracker.LockState.LOCKED)
                     (measurementStateMachine.lastPulse?.recentBeatNanos ?: emptyList()) else emptyList(),
                 lockState = lockResult.state.name,
+                beatEventId = gateResult.beatEventId,
                 debug = prev.debug.copy(
                     motionScore = score.total,
                     accelVariance = score.accelVariance,
@@ -247,6 +249,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
                 doubleAcfStrength = pulse?.hypotheses?.doubleStrength,
                 selectedHypothesis = lockResult.selectedHypothesis,
                 watchBpm = wearRepository.latestReference.value?.bpm,
+                // BeatEventGate debug (flash dedup doğrulaması).
+                displayBpm = lockedBpm,
+                beatEventId = gateResult.beatEventId,
+                beatCandidateNanos = pulse?.lastBeatNanos,
+                beatAccepted = gateResult.accepted,
+                acceptedBeatNanos = gateResult.acceptedNanos,
+                beatRejectionReason = gateResult.rejectionReason,
             ),
         )
         pushSensorDebug()

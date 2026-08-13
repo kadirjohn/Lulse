@@ -192,6 +192,13 @@ class CsvExporter {
                             f.doubleAcfStrength?.toString() ?: "",
                             f.selectedHypothesis,
                             f.watchBpm?.toString() ?: "",
+                            // BeatEventGate debug.
+                            f.displayBpm?.toString() ?: "",
+                            f.beatEventId.toString(),
+                            f.beatCandidateNanos?.toString() ?: "",
+                            f.beatAccepted.toString(),
+                            f.acceptedBeatNanos?.toString() ?: "",
+                            f.beatRejectionReason,
                         ).joinToString(","),
                     )
                 }

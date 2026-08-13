@@ -70,6 +70,19 @@ data class AnalysisFrame(
     val selectedHypothesis: String,
     /** Watch referans BPM snapshot (sadece debug CSV, runtime kararı değil). */
     val watchBpm: Int?,
+    // --- BeatEventGate debug (flash dedup doğrulaması için) ---
+    /** Ekranda gösterilen BPM (locked, raw değil). */
+    val displayBpm: Int?,
+    /** Beat event ID — her accepted beat'te artar. */
+    val beatEventId: Long,
+    /** Bu tick'te candidate beat zamanı (raw SignalProcessor'dan). */
+    val beatCandidateNanos: Long?,
+    /** Bu tick'te beat kabul edildi mi? */
+    val beatAccepted: Boolean,
+    /** Kabul edilen beat zamanı (sadece accepted ise non-null). */
+    val acceptedBeatNanos: Long?,
+    /** Red sebebi (duplicate/refractory/no_lock). */
+    val beatRejectionReason: String,
 )
 
 /** CSV'de analiz tablosu için sabit başlık sırası. */
@@ -104,4 +117,11 @@ internal val ANALYSIS_HEADER = listOf(
     "double_acf_strength",
     "selected_hypothesis",
     "watch_bpm",
+    // BeatEventGate debug.
+    "display_bpm",
+    "beat_event_id",
+    "beat_candidate_nanos",
+    "beat_accepted",
+    "accepted_beat_nanos",
+    "beat_rejection_reason",
 )

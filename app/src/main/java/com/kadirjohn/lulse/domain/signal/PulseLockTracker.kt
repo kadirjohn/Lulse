@@ -37,6 +37,8 @@ class PulseLockTracker(
     private val harmonicAltStrengthPct: Float = 1.0f,
     /** ACF gücü lock için min. */
     private val minLockStrength: Float = 0.20f,
+    /** Confidence lock için min — düşük confidence'lı candidate'ler lock olmaz (cold-start fix). */
+    private val minLockConfidence: Float = 0.30f,
     /** ACQUIRING cluster tutarlılık oranı (history'nin). */
     private val clusterConsensusPct: Float = 0.60f,
     /** LOCKED outlier → ACQUIRING eşiği. */
@@ -102,24 +104,32 @@ class PulseLockTracker(
                 if (cluster >= historyN * clusterConsensusPct) {
                     val clusterHyps = history.filter { abs(it.rawBpm - med) / med < clusterPct }
                     val meanStr = clusterHyps.map { it.rawStrength }.average().toFloat()
+                    // Cold-start sağlamlaştırma: confidence'ı lock kararına dahil et.
+                    // Düşük confidence'lı candidate'ler lock için yetersiz.
+                    val meanConf = clusterHyps.map { it.confidence }.average().toFloat()
                     // Harmonic ambiguity: raw'ın 2×'ı güçlü mü? (halving çözümü)
-                    val last = history.last()
-                    val double2x = last.rawBpm * 2f
-                    val double2xStr = if (last.doubleBpm != null && abs(last.doubleBpm - double2x) / double2x < 0.1f)
-                        last.doubleStrength else 0f
-                    if (double2x <= 180f && double2xStr > meanStr * harmonicAltStrengthPct) {
+                    // Double strength'i son tick yerine cluster ortalaması al (diğer AI önerisi).
+                    val double2x = med * 2f
+                    val meanDoubleStr = clusterHyps.mapNotNull { h ->
+                        if (h.doubleBpm != null && abs(h.doubleBpm - double2x) / double2x < 0.1f)
+                            h.doubleStrength else null
+                    }.average().toFloat()
+                    if (double2x <= 180f && meanDoubleStr > meanStr * harmonicAltStrengthPct) {
                         // 2× daha güçlü → raw 0.5× harmonic, fundamental 2× raw.
                         lockedBpm = double2x
                         state = LockState.LOCKED
                         lockAge = 0
                         switchReason = "locked_${double2x.toInt()}_from_halving"
-                    } else if (meanStr > minLockStrength) {
+                    } else if (meanStr > minLockStrength && meanConf >= minLockConfidence) {
+                        // Lock için yeterli ACF gücü + confidence.
                         lockedBpm = med
                         state = LockState.LOCKED
                         lockAge = 0
                         switchReason = "locked_${med.toInt()}"
-                    } else {
+                    } else if (meanStr <= minLockStrength) {
                         switchReason = "low_acf"
+                    } else {
+                        switchReason = "low_confidence"
                     }
                 } else {
                     switchReason = "no_cluster"
