@@ -151,6 +151,14 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private fun analyze(nowNanos: Long) {
         val (score, motionState) = motionAnalyzer.analyzeAndClassify(ringBuffer, nowNanos, currentMotionState)
 
+        // Design preview açıkken gerçek ölçüm/sensör state'i UI'ya yazılmasın —
+        // slider manuel simülasyonu geçerli kalsın. Ancak phoneUpright güncellenir,
+        // böylece ekran 0 (HIGH_MOTION) dik-tutma hint'i gerçek oryantasyona göre çalışır.
+        if (_uiState.value.designPreview) {
+            _uiState.update { it.copy(phoneUpright = score.phoneUpright) }
+            return
+        }
+
         // STILL'e geçiş anını kaydet — heartbeat estimator'a sadece STILL sonrası
         // fresh veri gitsin (HIGH_MOTION/SETTLING verisi karışmasın).
         if (motionState == MotionState.STILL && currentMotionState != MotionState.STILL) {
@@ -311,6 +319,34 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     /** Balon sürükleme — ekran konumunu güncelle (px offset). */
     fun updateBubbleOffset(x: Float, y: Float) {
         _uiState.update { it.copy(bubbleOffsetX = x, bubbleOffsetY = y) }
+    }
+
+    // --- Design preview (debug-only, tasarım önizleme) ---
+    // Gerçek sensör/ölçümü bastırır, slider ile 4 ekran manuel simüle edilir.
+    // Nabız hesaplanmaz; fake BPM (72) sadece LOCKED ekranı için gösterilir.
+
+    /** Design preview'i aç — varsayılan ekran 0 (HIGH_MOTION). */
+    fun startDesignPreview() {
+        _uiState.update { it.copy(designPreview = true, designPreviewIndex = 0) }
+    }
+
+    /** Design preview'i kapat — gerçek state'e dön. */
+    fun stopDesignPreview() {
+        _uiState.update { it.copy(designPreview = false, designPreviewIndex = -1) }
+    }
+
+    /** Slider ile aktif simülasyon ekranını seç (0..4). */
+    fun setDesignPreviewIndex(index: Int) {
+        val clamped = index.coerceIn(0, 4)
+        // LOCKED (BPM) ekranına geçişte beatEventId'i bir artır → kalp bir kez "tık" atar,
+        // pulse glow flash'ı simüle edilir. Diğer geçişlerde sadece index güncellenir.
+        _uiState.update { prev ->
+            val enteringLocked = clamped == 3 && prev.designPreviewIndex != 3
+            prev.copy(
+                designPreviewIndex = clamped,
+                beatEventId = if (enteringLocked) prev.beatEventId + 1 else prev.beatEventId,
+            )
+        }
     }
 
     fun startRecording() {

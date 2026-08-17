@@ -40,6 +40,7 @@ import com.kadirjohn.lulse.ui.components.Accent
 import com.kadirjohn.lulse.ui.components.AnimatedGradientBackground
 import com.kadirjohn.lulse.ui.components.DebugOverlay
 import com.kadirjohn.lulse.ui.components.DebugBubble
+import com.kadirjohn.lulse.ui.components.DesignPreviewSlider
 import com.kadirjohn.lulse.ui.components.HeartIcon
 import com.kadirjohn.lulse.ui.components.HeartMode
 import com.kadirjohn.lulse.ui.components.PulsingGlow
@@ -63,10 +64,19 @@ fun HomeScreen(
     onRestoreDebug: () -> Unit,
     onUpdateBubbleOffset: (Float, Float) -> Unit,
     onConnectWatch: () -> Unit,
+    onStartDesignPreview: () -> Unit,
+    onStopDesignPreview: () -> Unit,
+    onSetDesignPreviewIndex: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // Design preview açıkken gerçek state yerine simülasyon state'i kullan.
+    // phoneUpright gerçek oryantasyonu yansıtmaya devam eder (ViewModel günceller).
+    val effectiveState = if (state.designPreview && state.designPreviewIndex in 0..4) {
+        designPreviewState(state, state.designPreviewIndex)
+    } else state
+
     // heat: HIGH_MOTION=1, STILL=0
-    val heatTarget = when (state.motionState) {
+    val heatTarget = when (effectiveState.motionState) {
         MotionState.HIGH_MOTION -> 1f
         MotionState.SETTLING -> 0.5f
         MotionState.STILL -> 0f
@@ -75,11 +85,11 @@ fun HomeScreen(
 
     // Accent lock state'e göre — LOCKED yeşil, ACQUIRING/SEARCHING sarı/dark, hareket nötr.
     val accent = when {
-        state.lockState == "LOCKED" -> Accent.LOCKED_GREEN
-        state.measurementState == MeasurementState.LOW_CONFIDENCE -> Accent.AMBER
-        state.measurementState == MeasurementState.NO_PULSE -> Accent.NEUTRAL
-        state.measurementState == MeasurementState.PULSE_DETECTED -> Accent.PULSE
-        else -> if (state.motionState == MotionState.STILL) Accent.READY else Accent.NEUTRAL
+        effectiveState.lockState == "LOCKED" -> Accent.LOCKED_GREEN
+        effectiveState.measurementState == MeasurementState.LOW_CONFIDENCE -> Accent.AMBER
+        effectiveState.measurementState == MeasurementState.NO_PULSE -> Accent.NEUTRAL
+        effectiveState.measurementState == MeasurementState.PULSE_DETECTED -> Accent.PULSE
+        else -> if (effectiveState.motionState == MotionState.STILL) Accent.READY else Accent.NEUTRAL
     }
 
     Box(
@@ -94,7 +104,7 @@ fun HomeScreen(
         AnimatedGradientBackground(
             heat = heat,
             accent = accent,
-            lastBeatNanos = state.lastBeatNanos,
+            lastBeatNanos = effectiveState.lastBeatNanos,
         )
 
         // Merkez içerik — state'e göre değişir.
@@ -102,19 +112,33 @@ fun HomeScreen(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center,
         ) {
-            CenterContent(state)
+            CenterContent(effectiveState)
         }
 
-        // Debug overlay en üstte (tam panel).
+        // Design preview slider — debug panelinin ÜSTÜNDE konumlanır (TopCenter),
+        // ama panel z-order'da en önde olur çünkü slider önce, panel sonra render edilir
+        // (Compose Box: son eklenen üstte). Sadece debug aktifken görünür; debug tamamen
+        // kapanınca (debugVisible=false & debugMinimized=false) slider da kapanır.
+        if (state.designPreview && (state.debugVisible || state.debugMinimized)) {
+            DesignPreviewSlider(
+                index = state.designPreviewIndex,
+                onSelect = onSetDesignPreviewIndex,
+            )
+        }
+
+        // Debug overlay en üstte (tam panel) — slider'dan sonra render → en önde.
         DebugOverlay(
             state = state.debug,
             visible = state.debugVisible,
             recording = state.debug.recording,
+            designPreview = state.designPreview,
             onStartRecording = onStartRecording,
             onStopRecording = onStopRecording,
             onClose = onCloseDebug,
             onMinimize = onMinimizeDebug,
             onConnectWatch = onConnectWatch,
+            onStartDesignPreview = onStartDesignPreview,
+            onStopDesignPreview = onStopDesignPreview,
         )
 
         // Minimize edilmiş debug balonu (sürüklenebilir, tıkla → panel aç).
@@ -181,6 +205,61 @@ private fun centerKey(state: HomeUiState): CenterKey = when {
 }
 
 private enum class CenterKey { HIGH_MOTION, SETTLING, SEARCHING, ACQUIRING, LOCKED, NO_PULSE, LOW_CONFIDENCE }
+
+/**
+ * Design preview için simülasyon state'i (debug-only).
+ * Gerçek state'in üzerine 5 ekranı manuel taklit eder:
+ *  0 = HIGH_MOTION (yatay/hareketli; phoneUpright gerçek oryantasyonu korur),
+ *  1 = SETTLING (sabit dur),
+ *  2 = SEARCHING (nabız aranıyor),
+ *  3 = LOCKED (fake BPM'li atan kalp),
+ *  4 = NO_PULSE (nabız bulunamadı).
+ * Nabız hesaplanmaz — bpm sabit 72, beat glow beatEventId artışıyla tetiklenir.
+ */
+private fun designPreviewState(real: HomeUiState, index: Int): HomeUiState {
+    // Ekran 0 gerçek oryantasyonu yansıtır; diğerlerinde dik kabul etmeyelim
+    // ki hint yazısı sabit kalsın (sadece ekran 0'da dik-tutma anlamlı).
+    val phoneUpright = if (index == 0) real.phoneUpright else false
+    return when (index) {
+        0 -> real.copy(
+            motionState = MotionState.HIGH_MOTION,
+            measurementState = MeasurementState.IDLE,
+            lockState = "SEARCHING",
+            bpm = null,
+            phoneUpright = phoneUpright,
+        )
+        1 -> real.copy(
+            motionState = MotionState.SETTLING,
+            measurementState = MeasurementState.IDLE,
+            lockState = "SEARCHING",
+            bpm = null,
+            phoneUpright = false,
+        )
+        2 -> real.copy(
+            motionState = MotionState.STILL,
+            measurementState = MeasurementState.SEARCHING_PULSE,
+            lockState = "ACQUIRING",
+            bpm = null,
+            phoneUpright = false,
+        )
+        3 -> real.copy(
+            motionState = MotionState.STILL,
+            measurementState = MeasurementState.PULSE_DETECTED,
+            lockState = "LOCKED",
+            bpm = real.designPreviewBpm,
+            confidencePct = 88,
+            signalQuality = SignalQuality.HIGH,
+            phoneUpright = false,
+        )
+        else -> real.copy(
+            motionState = MotionState.STILL,
+            measurementState = MeasurementState.NO_PULSE,
+            lockState = "SEARCHING",
+            bpm = null,
+            phoneUpright = false,
+        )
+    }
+}
 
 /**
  * Hareket/dik-tutma yönerge sütunu — modern, sakin.

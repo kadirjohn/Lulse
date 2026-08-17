@@ -38,6 +38,14 @@ data class HomeUiState(
     /** Balon'un ekran konumu (px offset, sağ-üst köşeden). Sürükleme sırasında güncellenir. */
     val bubbleOffsetX: Float = 0f,
     val bubbleOffsetY: Float = 0f,
+    // --- Design preview (debug-only) ---
+    // Simülasyon modu açık mı? Açıksa gerçek sensör/ölçüm bastırılır, slider ile
+    // 4 ekran manuel simüle edilir (sadece tasarım önizleme; nabız hesaplanmaz).
+    val designPreview: Boolean = false,
+    // Aktif simülasyon ekranı (0..3). -1 = kapalı (gerçek state kullanılır).
+    val designPreviewIndex: Int = -1,
+    // Simülasyon fake BPM (LOCKED ekranı için). Sabit 72.
+    val designPreviewBpm: Int = 72,
 )
 
 enum class SignalQuality { UNKNOWN, HIGH, MEDIUM, LOW }

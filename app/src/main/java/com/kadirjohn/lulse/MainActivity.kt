@@ -46,6 +46,9 @@ class MainActivity : ComponentActivity() {
                     onRestoreDebug = viewModel::restoreDebug,
                     onUpdateBubbleOffset = viewModel::updateBubbleOffset,
                     onConnectWatch = viewModel::connectWatch,
+                    onStartDesignPreview = viewModel::startDesignPreview,
+                    onStopDesignPreview = viewModel::stopDesignPreview,
+                    onSetDesignPreviewIndex = viewModel::setDesignPreviewIndex,
                 )
             }
         }
