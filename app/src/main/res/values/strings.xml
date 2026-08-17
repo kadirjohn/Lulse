@@ -1,12 +1,12 @@
 <resources>
     <string name="app_name">Lulse</string>
 
-    <!-- High motion (State A) — single headline + sub-guidance -->
+    <!-- High motion (State A) — main guidance, always visible at launch -->
     <string name="motion_high_title">Lie down and place the phone over your heart</string>
-    <string name="motion_high_subtitle">Measurement starts once you settle</string>
+    <!-- "settle" / "upright" hints shown ~5s after launch, only while still moving -->
     <string name="motion_high_hint">Measurement starts once you settle</string>
-    <!-- Phone held upright (orientation gating) — sub-guidance, more prominent -->
-    <string name="motion_upright_hint">You\'re holding the phone upright — lay it flat on your chest</string>
+    <!-- Phone held upright (orientation gating) -->
+    <string name="motion_upright_hint">You\'re holding the phone upright, place it on your chest</string>
 
     <!-- Settling (State B) -->
     <string name="motion_settling_title">Stay still</string>
@@ -23,10 +23,6 @@
     <string name="no_pulse_title">No pulse detected</string>
     <string name="no_pulse_hint_reposition">Try shifting the phone a little to the left</string>
     <string name="no_pulse_hint_still">Stay still for a few more seconds</string>
-
-    <!-- First-launch onboarding overlay -->
-    <string name="intro_title">Lie down and place the phone over your heart</string>
-    <string name="intro_hint">Stay still for a few seconds for the best result</string>
 
     <!-- Debug panel -->
     <string name="debug_title">Debug</string>

@@ -11,6 +11,11 @@
         android:name="android.hardware.sensor.gyroscope"
         android:required="false" />
 
+    <!-- FASTEST sampling rate (0µs) için gerekli normal izin — Android 14+ (API 34+)
+         bu izin declared değilse registerListener anında SecurityException atar.
+         Kullanıcı onayı gerektirmez, sadece manifest'te declared olması yeterli. -->
+    <uses-permission android:name="android.permission.HIGH_SAMPLING_RATE_SENSORS" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

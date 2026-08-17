@@ -28,8 +28,6 @@ data class HomeUiState(
     val beatEventId: Long = 0L,
     // Telefon dik mi tutuluyor? (orientation gating) — UI yönlendirme için.
     val phoneUpright: Boolean = false,
-    // İlk açılış onboarding katmanı.
-    val showIntro: Boolean = true,
     // Debug overlay.
     val debugVisible: Boolean = false,
     val debug: DebugUiState = DebugUiState(),

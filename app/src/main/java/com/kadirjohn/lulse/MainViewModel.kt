@@ -313,10 +313,6 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         _uiState.update { it.copy(bubbleOffsetX = x, bubbleOffsetY = y) }
     }
 
-    fun dismissIntro() {
-        _uiState.update { it.copy(showIntro = false) }
-    }
-
     fun startRecording() {
         // --- Buffer contamination fix ---
         // Ring buffer'da önceki 40 saniyenin eski verisi var.

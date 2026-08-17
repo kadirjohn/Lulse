@@ -1,6 +1,7 @@
 package com.kadirjohn.lulse.ui.screen
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -12,14 +13,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -27,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import com.kadirjohn.lulse.R
 import com.kadirjohn.lulse.domain.measurement.MeasurementState
 import com.kadirjohn.lulse.domain.motion.MotionState
@@ -59,7 +63,6 @@ fun HomeScreen(
     onRestoreDebug: () -> Unit,
     onUpdateBubbleOffset: (Float, Float) -> Unit,
     onConnectWatch: () -> Unit,
-    onDismissIntro: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // heat: HIGH_MOTION=1, STILL=0
@@ -85,7 +88,6 @@ fun HomeScreen(
             .pointerInput(Unit) {
                 detectTapGestures(
                     onLongPress = { onLongPressToggleDebug() },
-                    onTap = { if (state.showIntro) onDismissIntro() },
                 )
             },
     ) {
@@ -101,11 +103,6 @@ fun HomeScreen(
             contentAlignment = Alignment.Center,
         ) {
             CenterContent(state)
-        }
-
-        // İlk açılış onboarding katmanı (spec §11) — hafif, dismiss ile kaybolur.
-        if (state.showIntro) {
-            IntroOverlay(state)
         }
 
         // Debug overlay en üstte (tam panel).
@@ -133,6 +130,16 @@ fun HomeScreen(
 
 @Composable
 private fun CenterContent(state: HomeUiState) {
+    // Açılış grace period — uygulama açılır açılmaz "hareket azalınca / dik
+    // tutuyorsunuz" yazıları hemen çıkmasın. ~5 saniye sonra, ancak yalnızca
+    // kullanıcı hâlâ hareketliyse (henüz ölçüm başlamadıysa) bilgilendir.
+    // Böylece telefon zaten sabit duruyorsa gereksiz yazı gösterilmez.
+    var gracePassed by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(5000L)
+        gracePassed = true
+    }
+
     AnimatedContent(
         targetState = centerKey(state),
         transitionSpec = {
@@ -144,8 +151,8 @@ private fun CenterContent(state: HomeUiState) {
         when (key) {
             CenterKey.HIGH_MOTION -> GuidanceColumn(
                 title = stringRes(R.string.motion_high_title),
-                subtitle = stringRes(R.string.motion_high_subtitle),
                 hint = if (state.phoneUpright) stringRes(R.string.motion_upright_hint) else stringRes(R.string.motion_high_hint),
+                hintVisible = gracePassed,
             )
             CenterKey.SETTLING -> GuidanceColumn(
                 title = stringRes(R.string.motion_settling_title),
@@ -175,33 +182,61 @@ private fun centerKey(state: HomeUiState): CenterKey = when {
 
 private enum class CenterKey { HIGH_MOTION, SETTLING, SEARCHING, ACQUIRING, LOCKED, NO_PULSE, LOW_CONFIDENCE }
 
+/**
+ * Hareket/dik-tutma yönerge sütunu — modern, sakin.
+ * [title] açılışta ve hareketli durumda her zaman görünür (ör.
+ * "Yatar pozisyona geçin ve telefonu kalbinizin üzerine koyun").
+ * [subtitle]/[hint] alt yönerge — [hintVisible] grace period (~5sn)
+ * sonrası fade ile açılır, böylece açılışta hemen "hareket azalınca /
+ * dik tutuyorsunuz" yazısı çıkmaz, ama konumu sabit kalır.
+ */
 @Composable
-private fun GuidanceColumn(title: String, subtitle: String, hint: String? = null) {
+private fun GuidanceColumn(
+    title: String,
+    subtitle: String? = null,
+    hint: String? = null,
+    hintVisible: Boolean = true,
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
-        // "Yatar pozisyon" cümlesi biraz yukarı — büyük title, alt yönerge daha küçük.
         modifier = Modifier.padding(horizontal = 28.dp).padding(bottom = 40.dp),
     ) {
-        // Tek büyük fixed cümle — title, en belirgin.
+        // Ana yönerge — açılışta her zaman görünür, biraz daha kalın (Medium).
         Text(
             title,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.SemiBold,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
         )
-        Spacer(Modifier.height(14.dp))
-        // Alt yönerge — subtitle, biraz daha küçük ama yine büyük.
-        Text(
-            subtitle,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
-        if (hint != null && hint != subtitle) {
-            Spacer(Modifier.height(18.dp))
-            Text(hint, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f), textAlign = TextAlign.Center)
+        if (subtitle != null) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+        if (hint != null) {
+            AnimatedVisibility(
+                visible = hintVisible,
+                enter = fadeIn(tween(800, easing = CalmEasing)),
+                exit = fadeOut(tween(600, easing = CalmEasing)),
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Spacer(Modifier.height(14.dp))
+                    // Alt yönerge (dik tutma / hareket azalınca) — biraz daha büyük, belirgin.
+                    Text(
+                        hint,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
         }
     }
 }
@@ -282,39 +317,7 @@ private fun NoPulseContent() {
 // LowConfidenceContent kaldırıldı — LOW_CONFIDENCE artık PulseContent kullanır
 // (büyük BPM, gereksiz "Ölçüm kararsız" yazısı yok, kullanıcı UI isteği).
 
-@Composable
-private fun IntroOverlay(state: HomeUiState) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(bottom = 60.dp),
-        contentAlignment = Alignment.BottomCenter,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(horizontal = 40.dp),
-        ) {
-            Text(stringRes(R.string.intro_title), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(8.dp))
-            Text(stringRes(R.string.intro_hint), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            // Disclaimer ("tıbbi amaçla kullanılmaz") kaldırıldı — kullanıcı isteği.
-        }
-    }
-}
-
 // --- String yardımcıları (Compose stringResource sarmalayıcı) ---
 
 @Composable
 private fun stringRes(id: Int): String = androidx.compose.ui.res.stringResource(id)
-
-@Composable
-private fun stringResArgs(id: Int, vararg args: Any): String = androidx.compose.ui.res.stringResource(id, *args)
-
-private fun qualityText(q: SignalQuality): String = when (q) {
-    SignalQuality.HIGH -> "Sinyal kalitesi: Yüksek"
-    SignalQuality.MEDIUM -> "Sinyal kalitesi: Orta"
-    SignalQuality.LOW -> "Sinyal kalitesi: Düşük"
-    SignalQuality.UNKNOWN -> ""
-}
