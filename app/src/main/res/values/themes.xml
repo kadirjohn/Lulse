@@ -1,5 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Lulse: edge-to-edge, no-action-bar, karanlık. Compose tema runtime'da yönetir. -->
-    <style name="Theme.Lulse" parent="android:Theme.DeviceDefault.NoActionBar" />
+    <!-- windowBackground gerçek siyah: aç-kapa / Activity recreate / process restart sırasında
+         Compose çizimi gecikse bile sistem default gri/surface pencere arka planı görünmesin. -->
+    <style name="Theme.Lulse" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/black</item>
+        <item name="android:colorBackground">@color/black</item>
+    </style>
 </resources>

@@ -3,6 +3,7 @@ package com.kadirjohn.lulse
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.collectAsState
@@ -14,14 +15,20 @@ import com.kadirjohn.lulse.ui.theme.LulseTheme
 /**
  * Lulse'un tek Activity'si — tek ekranı host eder (spec §4).
  *
- * - edge-to-edge
+ * - edge-to-edge (siyah sistem barları — Activity recreate'de griye dönmeyi engeller)
  * - ekran sürekli açık (ölçüm sırasında kapanmasın)
  * - her zaman karanlık tema
  */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Sistem barlarını tam şeffaf + siyah scrims ile edge-to-edge.
+        // dark scrim: sistem barları siyah arka plana otomatik uyum sağlar;
+        // Activity recreate / aç-kapa sırasında gri windowBackground sızıntısını engeller.
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+        )
         // Ekran ölçüm sırasında kapanmasın.
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 

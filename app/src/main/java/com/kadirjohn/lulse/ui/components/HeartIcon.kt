@@ -54,38 +54,10 @@ fun HeartIcon(
         val w = size.width
         val h = size.height
 
-        // Düzgün kalp path'i — iki simetrik lob, yumuşak tepe, alt sivri.
-        // Standart kalp bezier eğrisi, normalize edilmiş koordinatlar.
-        val heartPath = Path().apply {
-            // Alt uç noktadan başla (kalbin alt sivri ucu)
-            moveTo(w * 0.5f, h * 0.88f)
-
-            // Sol taraf — alttan yukarı doğru yay
-            cubicTo(
-                w * 0.02f, h * 0.58f,   // kontrol 1: sol alt
-                w * 0.02f, h * 0.18f,   // kontrol 2: sol üst (lob tepesi)
-                w * 0.30f, h * 0.18f,   // sol lob tepesi
-            )
-            // Sol lob'tan merkeze (çukur)
-            cubicTo(
-                w * 0.38f, h * 0.18f,   // kontrol 1: lob içi
-                w * 0.44f, h * 0.22f,   // kontrol 2: çukur'a yaklaş
-                w * 0.50f, h * 0.28f,   // orta çukur (en düşük nokta)
-            )
-            // Merkezden sağ lob'a
-            cubicTo(
-                w * 0.56f, h * 0.22f,   // kontrol 1: çukur'dan çık
-                w * 0.62f, h * 0.18f,   // kontrol 2: sağ lob içi
-                w * 0.70f, h * 0.18f,   // sağ lob tepesi
-            )
-            // Sağ lob'tan alta
-            cubicTo(
-                w * 0.98f, h * 0.18f,   // kontrol 1: sağ üst
-                w * 0.98f, h * 0.58f,   // kontrol 2: sağ alt
-                w * 0.50f, h * 0.88f,   // alt uç (kapanış)
-            )
-            close()
-        }
+        // Tek kaynak kalp şekli — tüm modlar (SEARCHING/PULSE_DETECTED/NO_PULSE/
+        // LOW_CONFIDENCE) bu path'i paylaşır, böylece her ekrandaki kalp aynı
+        // SVG gibidir. Modlar yalnızca renk/dolgu/çerçeve ile ayrışır.
+        val heartPath = buildHeartPath(w, h)
 
         // Pulse: BPM varsa her atımda büyü, yoksa hafif nefes.
         val pulseScale = if (bpm != null) {
@@ -121,3 +93,40 @@ enum class HeartMode { SEARCHING, PULSE_DETECTED, NO_PULSE, LOW_CONFIDENCE }
 private data class Quad(val fill: Color, val stroke: Color, val glow: Color, val alpha: Float)
 
 private val NeutralGrayFaint = Color(0xFF4A4A52)
+
+/**
+ * Tek kaynak kalp path'i — iki simetrik lob, yumuşak tepe, alt sivri.
+ * Standart kalp bezier eğrisi, normalize edilmiş koordinatlar.
+ * Tüm [HeartMode]'lar bu fonksiyonu paylaşır → her ekrandaki kalp şekli
+ * birebir aynıdır (tek SVG gibi). Sadece renk/dolgu/çerçeve mod'a göre değişir.
+ */
+private fun buildHeartPath(w: Float, h: Float): Path = Path().apply {
+    // Alt uç noktadan başla (kalbin alt sivri ucu)
+    moveTo(w * 0.5f, h * 0.88f)
+
+    // Sol taraf — alttan yukarı doğru yay
+    cubicTo(
+        w * 0.02f, h * 0.58f,   // kontrol 1: sol alt
+        w * 0.02f, h * 0.18f,   // kontrol 2: sol üst (lob tepesi)
+        w * 0.30f, h * 0.18f,   // sol lob tepesi
+    )
+    // Sol lob'tan merkeze (çukur)
+    cubicTo(
+        w * 0.38f, h * 0.18f,   // kontrol 1: lob içi
+        w * 0.44f, h * 0.22f,   // kontrol 2: çukur'a yaklaş
+        w * 0.50f, h * 0.28f,   // orta çukur (en düşük nokta)
+    )
+    // Merkezden sağ lob'a
+    cubicTo(
+        w * 0.56f, h * 0.22f,   // kontrol 1: çukur'dan çık
+        w * 0.62f, h * 0.18f,   // kontrol 2: sağ lob içi
+        w * 0.70f, h * 0.18f,   // sağ lob tepesi
+    )
+    // Sağ lob'tan alta
+    cubicTo(
+        w * 0.98f, h * 0.18f,   // kontrol 1: sağ üst
+        w * 0.98f, h * 0.58f,   // kontrol 2: sağ alt
+        w * 0.50f, h * 0.88f,   // alt uç (kapanış)
+    )
+    close()
+}

@@ -243,27 +243,29 @@ private fun GuidanceColumn(
 
 @Composable
 private fun SearchingContent() {
-    Box(contentAlignment = Alignment.Center) {
-        PulsingGlow(
-            color = GlowTone.READY,
-            intensity = 1f,
-            modifier = Modifier.size(280.dp),
-        )
-        HeartIcon(
-            mode = HeartMode.SEARCHING,
-            bpm = null,
-            modifier = Modifier.size(120.dp),
-        )
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(top = 170.dp),
-        ) {
-            // "Nabız aranıyor" — ACQUIRING/SEARCHING'de büyük, BPM gösterme.
-            Text(stringRes(R.string.ready_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.height(6.dp))
-            Text(stringRes(R.string.ready_subtitle), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    // Glow + heart tek bir merkez blok, altında net boşluk + text.
+    // Önceki padding(top=...) yaklaşımı text'i kalple çakıştırabiliyordu.
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            PulsingGlow(
+                color = GlowTone.READY,
+                intensity = 1f,
+                modifier = Modifier.size(280.dp),
+            )
+            HeartIcon(
+                mode = HeartMode.SEARCHING,
+                bpm = null,
+                modifier = Modifier.size(120.dp),
+            )
         }
+        Spacer(Modifier.height(32.dp))
+        // "Nabız aranıyor" — ACQUIRING/SEARCHING'de büyük, BPM gösterme.
+        Text(stringRes(R.string.ready_title), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(6.dp))
+        Text(stringRes(R.string.ready_subtitle), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -297,20 +299,22 @@ private fun PulseContent(bpm: Int?, confidencePct: Int?, quality: SignalQuality)
 
 @Composable
 private fun NoPulseContent() {
-    Box(contentAlignment = Alignment.Center) {
-        PulsingGlow(color = GlowTone.NEUTRAL, intensity = 0.6f, modifier = Modifier.size(260.dp))
-        HeartIcon(mode = HeartMode.NO_PULSE, bpm = null, modifier = Modifier.size(110.dp))
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(top = 150.dp),
-        ) {
-            Text(stringRes(R.string.no_pulse_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(Modifier.height(8.dp))
-            Text(stringRes(R.string.no_pulse_hint_reposition), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-            Spacer(Modifier.height(4.dp))
-            Text(stringRes(R.string.no_pulse_hint_still), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+    // Glow + heart tek merkez blok, altında net boşluk + text.
+    // Önceki padding(top=150dp) text'i kalple çakıştırıyordu (overlap).
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            PulsingGlow(color = GlowTone.NEUTRAL, intensity = 0.6f, modifier = Modifier.size(260.dp))
+            HeartIcon(mode = HeartMode.NO_PULSE, bpm = null, modifier = Modifier.size(110.dp))
         }
+        Spacer(Modifier.height(36.dp))
+        Text(stringRes(R.string.no_pulse_title), style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(8.dp))
+        Text(stringRes(R.string.no_pulse_hint_reposition), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(4.dp))
+        Text(stringRes(R.string.no_pulse_hint_still), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
     }
 }
 
