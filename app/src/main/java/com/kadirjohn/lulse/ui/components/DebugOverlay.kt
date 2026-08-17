@@ -1,9 +1,6 @@
 package com.kadirjohn.lulse.ui.components
 
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,25 +20,17 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kadirjohn.lulse.ui.screen.DebugUiState
-import kotlinx.coroutines.launch
 
 /**
  * Gizli debug overlay (spec §7). Ana UI'yi kirletmez — yalnızca
@@ -253,28 +242,8 @@ fun DesignPreviewSlider(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val scope = rememberCoroutineScope()
     val segmentCount = DesignPreviewLabels.size
     val maxIndex = (segmentCount - 1).toFloat()
-
-    // Tutamacın pozisyonu — SENKRON state. Drag sırasında hemen güncellenir, böylece
-    // eşik kontrolü her frame'de doğru segmenti görür (async Animatable lag'i olmadan).
-    var dragOffset by remember { mutableStateOf(index.toFloat()) }
-    // Snap animasyonu yalnızca drag bittiğinde kullanılır (görsel hizalama).
-    val snapAnim = remember { Animatable(index.toFloat()) }
-    // Drag aktif mi? Drag sırasında dragOffset, değilse snapAnim değeri gösterilir.
-    var isDragging by remember { mutableStateOf(false) }
-    val displayOffset = if (isDragging) dragOffset else snapAnim.value
-
-    // Dışarıdan index değişirse (slider'a ilk ulaşımda / programatik seçim)
-    // tutamacı yeni segmente yumuşakça taşı. Drag sırasında bu tetiklenmez (isDragging).
-    LaunchedEffect(index) {
-        if (!isDragging && snapAnim.value.toInt() != index) {
-            snapAnim.snapTo(dragOffset)
-            snapAnim.animateTo(index.toFloat(), tween(260))
-            dragOffset = index.toFloat()
-        }
-    }
 
     Box(
         modifier = modifier
@@ -305,95 +274,26 @@ fun DesignPreviewSlider(
                 fontWeight = FontWeight.Medium,
             )
 
-            // index ve onSelect'i her recomposition'da güncel tut — pointerInput
-            // closure'ı drag bitene kadar eski değeri capture etmesin (geriye dönüş
-            // yönünde onSelect'in hiç çağrılmaması bug'ını kökünden çözer).
-            val currentIndex by rememberUpdatedState(index)
-            val currentOnSelect by rememberUpdatedState(onSelect)
-
-            // Kaydırma bölgesi — tutamacı yatayda sürükle. Her segment eşiği geçilince
-            // anında onSelect çağrılır (release beklemeden ekran değişir).
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
-                    .pointerInput(segmentCount) {
-                        val trackWidthPx = size.width.toFloat()
-                        val segmentPx = trackWidthPx / segmentCount
-                        detectDragGestures(
-                            onDragStart = { isDragging = true },
-                            onDragEnd = {
-                                // Bırakınca tutamacı en yakın segmente snap (görsel hizalama).
-                                isDragging = false
-                                val snapped = dragOffset.roundToInt().coerceIn(0, segmentCount - 1)
-                                scope.launch {
-                                    snapAnim.snapTo(dragOffset)
-                                    snapAnim.animateTo(snapped.toFloat(), tween(180))
-                                    dragOffset = snapped.toFloat()
-                                }
-                            },
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                // Drag offset'i senkron güncelle — eşik kontrolü hemen doğru çalışır.
-                                dragOffset = (dragOffset + dragAmount.x / segmentPx).coerceIn(0f, maxIndex)
-                                // Eşiği geçen yeni segmenti anında uygula — release gerekmez.
-                                // İleri ve geri yön için simetrik çalışır (currentIndex her zaman güncel).
-                                val current = dragOffset.roundToInt().coerceIn(0, segmentCount - 1)
-                                if (current != currentIndex) currentOnSelect(current)
-                            },
-                        )
-                    },
-            ) {
-                SliderTrack(segmentCount = segmentCount, offset = displayOffset)
-            }
-        }
-    }
-}
-
-/**
- * Slider'ın görsel izi: segment çizgileri + kayan tutamaç (o).
- * o---|---|---|  → tutamaç offset'e göre yatayda konumlanır, | işaretleri sabit.
- * Renkler composable context'te toplanır, DrawScope'a parametre geçilir.
- */
-@Composable
-private fun SliderTrack(segmentCount: Int, offset: Float) {
-    val tertiary = MaterialTheme.colorScheme.tertiary
-    Box(modifier = Modifier.fillMaxSize()) {
-        androidx.compose.foundation.Canvas(modifier = Modifier.fillMaxSize()) {
-            val w = size.width
-            val h = size.height
-            val segmentPx = w / segmentCount
-
-            // Yatay bağlantı çizgisi.
-            drawLine(
-                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.25f),
-                start = Offset(segmentPx * 0.5f, h * 0.5f),
-                end = Offset(w - segmentPx * 0.5f, h * 0.5f),
-                strokeWidth = 2.dp.toPx(),
-            )
-
-            // Segment işaretleri (|) — her segment merkezi.
-            for (i in 0 until segmentCount) {
-                val x = segmentPx * (i + 0.5f)
-                drawLine(
-                    color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.4f),
-                    start = Offset(x, h * 0.3f),
-                    end = Offset(x, h * 0.7f),
-                    strokeWidth = 2.dp.toPx(),
-                )
-            }
-
-            // Tutamaç (o) — offset'e göre konumlanır.
-            val handleX = segmentPx * (offset + 0.5f)
-            drawCircle(
-                color = tertiary,
-                radius = 12.dp.toPx(),
-                center = Offset(handleX, h * 0.5f),
-            )
-            drawCircle(
-                color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.9f),
-                radius = 6.dp.toPx(),
-                center = Offset(handleX, h * 0.5f),
+            // Gerçek Material3 Slider — discrete steps (5 segment → 4 stop aralığı).
+            // Platform çizimi: gerçek Material You track/thumb/stop çentikleri, pressed
+            // thumb büyüme + ripple. onValueChange her stop eşiğinde anında onSelect
+            // çağırır → release beklemeden ekran değişir, ileri/geri serbest geçiş.
+            Slider(
+                value = index.toFloat(),
+                onValueChange = { value ->
+                    val current = value.roundToInt().coerceIn(0, segmentCount - 1)
+                    if (current != index) onSelect(current)
+                },
+                valueRange = 0f..maxIndex,
+                steps = segmentCount - 2, // N segment → N-1 aralık → N-2 ara stop
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.tertiary,
+                    activeTrackColor = MaterialTheme.colorScheme.tertiary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    activeTickColor = MaterialTheme.colorScheme.onPrimary,
+                    inactiveTickColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                ),
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
