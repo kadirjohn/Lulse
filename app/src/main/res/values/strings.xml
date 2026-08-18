@@ -2,7 +2,7 @@
     <string name="app_name">Lulse</string>
 
     <!-- High motion (State A) — main guidance, always visible at launch -->
-    <string name="motion_high_title">Lie down and place the phone over your heart</string>
+    <string name="motion_high_title">Lie on your back and place the phone over your heart</string>
     <!-- "settle" / "upright" hints shown ~5s after launch, only while still moving -->
     <string name="motion_high_hint">Measurement starts once you settle</string>
     <!-- Phone held upright (orientation gating) -->

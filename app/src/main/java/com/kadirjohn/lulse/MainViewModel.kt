@@ -65,6 +65,31 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     // fresh veri gitsin (HIGH_MOTION/SETTLING verisi karışmasın).
     private var stillSinceNanos: Long = 0L
 
+    // --- Lifecycle pause/resume (background→foreground gri/soluk ekran fix) ---
+    // viewModelScope Activity onStop'da ölmediği için pipeline arka planda da çalışmaya
+    // devam eder. Background'da OS FASTEST sensörleri throttle eder → seyrek/sanse veriyle
+    // analyze() STILL sınıflar + null pulse üretir → PulseLockTracker lock'u sıfırlar.
+    // Dönüşte kullanıcı canlı kırmızı/LOCKED ekran yerine soluk SEARCHING (gri) görür.
+    // Çözüm: onStop pipeline'ı dondur, onStart stale buffer'ı temizle + grace penceresi
+    // boyunca analyze'i atla (fresh veri buffer'ı doldursun) → mevcut UI state korunur.
+    private var pipelinePaused = false
+    private var resumeGraceUntilNanos = 0L
+
+    /** Activity onStop — pipeline'ı dondur. Background çöp verisi lock'u bozmasın. */
+    fun onPause() {
+        pipelinePaused = true
+    }
+
+    /** Activity onStart — stale buffer'ı temizle, fresh veri için grace penceresi aç. */
+    fun onResume() {
+        pipelinePaused = false
+        ringBuffer.clear()
+        stillSinceNanos = 0L
+        // ~2.5s grace: fresh FASTEST sample'lar buffer'ı doldurana kadar analyze'i atla.
+        // Bu süre boyunca _uiState son (dönüşteki) değerinde kalır → gri/soluk regresyon yok.
+        resumeGraceUntilNanos = System.nanoTime() + 2_500_000_000L
+    }
+
     init {
         startPipeline()
         startWatchObserver()
@@ -135,14 +160,19 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
             val analysisIntervalNanos = 200_000_000L // ~200ms (spec §9.A)
 
             sensorRepository.samples().collect { sample ->
+                // Lifecycle: arka planda pipeline donmuş — sample'ı işleme, state'i koruma.
+                if (pipelinePaused) return@collect
                 ringBuffer.add(sample)
                 sampleRateEstimators[sample.sensorType]?.update(sample.timestampNanos)
                 recordingManager.add(sample)
 
-                // Throttle: ~200ms'de bir analiz.
+                // Throttle: ~200ms'de bir analiz — ama resume grace penceresinde atla
+                // (fresh veri buffer'ı doldursun, stale background verisiyle analiz yapma).
                 if (sample.timestampNanos - lastAnalysisNanos >= analysisIntervalNanos) {
                     lastAnalysisNanos = sample.timestampNanos
-                    analyze(sample.timestampNanos)
+                    if (System.nanoTime() >= resumeGraceUntilNanos) {
+                        analyze(sample.timestampNanos)
+                    }
                 }
             }
         }

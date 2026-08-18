@@ -2,7 +2,7 @@
     <string name="app_name">Lulse</string>
 
     <!-- Yüksek hareket (State A) — ana yönerge, açılışta her zaman görünür -->
-    <string name="motion_high_title">Yatar pozisyona geçin ve telefonu kalbinizin üzerine koyun</string>
+    <string name="motion_high_title">Sırtüstü yatar pozisyona geçin ve telefonu kalbinizin üzerine koyun</string>
     <!-- "settle" / "upright" alt yönerge — açılıştan ~5 sn sonra, yalnızca hâlâ hareketliyse gösterilir -->
     <string name="motion_high_hint">Hareket azalınca ölçüm başlayacak</string>
     <!-- Telefon dik tutuluyor (orientation gating) -->
