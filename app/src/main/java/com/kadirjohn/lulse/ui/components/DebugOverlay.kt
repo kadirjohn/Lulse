@@ -17,11 +17,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -60,49 +62,55 @@ fun DebugOverlay(
             .statusBarsPadding()
             .padding(12.dp),
     ) {
-        Column(
+        // Material 3 Surface — tonalElevation ile gerçek M3 tonal yüzey rengi,
+        // shadowElevation ile hafif kabarık his. Düz yarı-saydam Box yerine.
+        Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.86f))
-                .padding(14.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            tonalElevation = 6.dp,
+            shadowElevation = 12.dp,
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Debug",
-                    style = MaterialTheme.typography.labelLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f),
-                )
-                // Minimize butonu — paneli balona indir.
-                IconButton(
-                    onClick = onMinimize,
-                    modifier = Modifier.size(40.dp),
+            Column(
+                modifier = Modifier.padding(vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                // Başlık satısı — Material 3 top app bar hissi.
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
                 ) {
                     Text(
-                        "–",
+                        text = "Debug",
+                        style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Medium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f),
                     )
+                    // Minimize butonu — paneli balona indir.
+                    IconButton(onClick = onMinimize) {
+                        Text(
+                            "–",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.Medium,
+                        )
+                    }
+                    // Kapat butonu.
+                    IconButton(onClick = onClose) {
+                        Text(
+                            "×",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Light,
+                        )
+                    }
                 }
-                // Kapat butonu (büyütülmüş çarpı).
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.size(44.dp),
-                ) {
-                    Text(
-                        "×",
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontSize = 32.sp,
-                        fontWeight = FontWeight.Light,
-                    )
-                }
-            }
-            Spacer(Modifier.height(2.dp))
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
             DebugSection("Sensörler") {
                 state.sensorAvailability.forEach { (name, avail) ->
@@ -111,20 +119,18 @@ fun DebugOverlay(
                 state.sensorInfo.forEach { (name, info) ->
                     if (info != null) DebugRowSmall("$name info", info)
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(8.dp))
                 // Design preview toggle — sadece tasarım önizleme; gerçek ölçümü bastırır,
-                // 4 ekranı slider ile manuel simüle eder (nabız hesaplanmaz).
+                // 5 ekranı slider ile manuel simüle eder (nabız hesaplanmaz).
                 if (designPreview) {
-                    Button(
+                    OutlinedButton(
                         onClick = onStopDesignPreview,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(),
                     ) { Text("Design preview: açık — kapat") }
                 } else {
-                    Button(
+                    OutlinedButton(
                         onClick = onStartDesignPreview,
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.outlinedButtonColors(),
                     ) { Text("Design preview aç") }
                 }
             }
@@ -156,24 +162,25 @@ fun DebugOverlay(
                 DebugRow("ibi", state.watchLastValidIbiMs?.let { "$it ms" } ?: "—")
                 DebugRow("age", state.watchReferenceAgeMs?.let { "$it ms" } ?: "—")
                 DebugRow("sequence", state.watchSequence.toString())
-                Spacer(Modifier.height(4.dp))
-                Button(
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
                     onClick = onConnectWatch,
                     modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.outlinedButtonColors(),
                 ) { Text("Watch'a bağlan") }
             }
-            DebugSection("Kayıt") {
+            DebugSection("Kayıt", showDivider = false) {
                 DebugRow("recording", if (recording) "EVET" else "hayır")
                 DebugRow("count", state.recordedCount.toString())
                 if (state.lastExportPath != null) {
                     DebugRowSmall("export", state.lastExportPath)
                 }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(8.dp))
                 if (recording) {
-                    Button(onClick = onStopRecording, modifier = Modifier.fillMaxWidth()) {
-                        Text("Kaydı durdur")
-                    }
+                    // Durdur — vurgulu filled (tehlikeli/aktif eylem).
+                    Button(
+                        onClick = onStopRecording,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Kaydı durdur") }
                 } else {
                     // Design preview'da gerçek nabız hesabı yapılmaz → kayıt başlatma kapalı.
                     Button(
@@ -184,8 +191,10 @@ fun DebugOverlay(
                         Text(if (designPreview) "Kayıt (preview'da kapalı)" else "Kaydı başlat")
                     }
                 }
+                Spacer(Modifier.height(8.dp))
             }
         }
+        } // Surface trailing lambda kapanışı
     }
 
     // Design preview slider DebugOverlay'da DEĞİL, HomeScreen seviyesinde
@@ -193,48 +202,86 @@ fun DebugOverlay(
 }
 
 @Composable
-private fun DebugSection(title: String, content: @Composable () -> Unit) {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.labelLarge,
-        color = MaterialTheme.colorScheme.tertiary,
-        fontWeight = FontWeight.SemiBold,
-    )
-    content()
-    Spacer(Modifier.height(4.dp))
+private fun DebugSection(
+    title: String,
+    showDivider: Boolean = true,
+    content: @Composable () -> Unit,
+) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        // Material 3 bölüm başlığı — küçük, harf aralıklı, vurgu rengi.
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.tertiary,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 1.2.sp,
+            modifier = Modifier.padding(top = 12.dp, bottom = 6.dp),
+        )
+        content()
+    }
+    // Bölüm sonu ayraç — Material 3 list-divider hissi (son bölümde kapalı).
+    if (showDivider) {
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+    }
 }
 
 @Composable
 private fun DebugRow(k: String, v: String) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(k, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(v, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Anahtar — soluk etiket.
+        Text(
+            k,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        // Değer — vurgulu, sağa yaslı.
+        Text(
+            v,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium,
+        )
     }
 }
 
 @Composable
 private fun DebugRowSmall(k: String, v: String) {
-    Column {
-        Text(k, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Text(v, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface, maxLines = 2)
+    Column(modifier = Modifier.padding(vertical = 3.dp)) {
+        Text(
+            k,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            v,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+        )
     }
 }
 
-// --- Design preview slider (debug panelinin üstü, 5 segment) ---
+// --- Design preview slider (ekran altı, 5 segment) ---
 
 private val DesignPreviewLabels = listOf("Hareketli", "Sabit dur", "Nabız aranıyor", "BPM", "Nabız yok")
 
 /**
- * Design preview için debug panelinin üstünde açılan 5 segmentli kaydırma slider'ı.
+ * Design preview için ekranın altında açılan 5 segmentli kaydırma slider'ı.
  *
- * - Soldan sağa natural kaydırma + her segment eşiği geçildiğinde anında ekran
- *   değişimi (release beklenmez). Böylece ileri/geri tüm ekranlara serbest geçilir.
- * - Tutamaç (o) offset'e göre yatayda konumlanır, | işaretleri sabit:
- *      o---|---|---|---|  (0. segment)  →  |---|---o---|---|  (2. segment)
- * - Segmentler: 0=Hareketli, 1=Sabit dur, 2=Nabız aranıyor, 3=BPM, 4=Nabız yok.
- * - Sadece manuel seçim — otomatik ekran geçişi yok.
+ * Gerçek Material3 [Slider] (discrete steps) — platform Material You çizimi:
+ * ince track, stop çentikleri, pressed thumb büyüme + ripple. [onValueChange]
+ * her stop eşiğinde anında [onSelect] çağırır → release beklemeden ekran değişir,
+ * ileri/geri serbest geçiş.
  *
- * Debug panelinin üstünde (TopCenter) konumlanır; panel en üstte (en önde) görünür.
+ * Segmentler: 0=Hareketli, 1=Sabit dur, 2=Nabız aranıyor, 3=BPM, 4=Nabız yok.
+ * Sadece manuel seçim — otomatik ekran geçişi yok.
  */
 @Composable
 fun DesignPreviewSlider(
@@ -275,13 +322,10 @@ fun DesignPreviewSlider(
             )
 
             // Gerçek Material3 Slider — discrete steps (5 segment → 4 stop aralığı).
-            // Platform çizimi: gerçek Material You track/thumb/stop çentikleri, pressed
-            // thumb büyüme + ripple. onValueChange her stop eşiğinde anında onSelect
-            // çağırır → release beklemeden ekran değişir, ileri/geri serbest geçiş.
             Slider(
                 value = index.toFloat(),
                 onValueChange = { value ->
-                    val current = value.roundToInt().coerceIn(0, segmentCount - 1)
+                    val current = value.toIntForStep().coerceIn(0, segmentCount - 1)
                     if (current != index) onSelect(current)
                 },
                 valueRange = 0f..maxIndex,
@@ -299,4 +343,5 @@ fun DesignPreviewSlider(
     }
 }
 
-private fun Float.roundToInt(): Int = kotlin.math.round(this).toInt()
+/** Slider value → en yakın segment index'i (yuvarlama). */
+private fun Float.toIntForStep(): Int = kotlin.math.round(this).toInt()
